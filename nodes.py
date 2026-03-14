@@ -82,6 +82,17 @@ def _coerce_float(value: Any, default: float) -> float:
     if isinstance(value, str):
         return float(value) if value.strip() else default
     return float(value)
+
+
+def _coerce_int(value: Any, default: int) -> int:
+    """Return *value* as an int, falling back to *default* for empty strings.
+
+    Older ComfyUI workflows may store optional INT widget values as ``""``
+    instead of the numeric default when the field was not explicitly set.
+    """
+    if isinstance(value, str):
+        return int(value) if value.strip() else default
+    return int(value)
 def _binary_in_build(build_dir: str, name: str) -> Optional[str]:
     """Return the path to *name* if it exists in *build_dir* or *build_dir*/bin.
 
@@ -1182,10 +1193,13 @@ class AcestepCPPGenerate:
         # Merge options dict (from AcestepCPPOptions) with defaults.
         opts: Dict[str, Any] = options or {}
 
-        # Coerce optional FLOAT inputs that may arrive as empty strings from
+        # Coerce optional numeric inputs that may arrive as empty strings from
         # workflows saved with an older version of the node schema.
         lm_top_p = _coerce_float(lm_top_p, 0.9)
+        lm_top_k = _coerce_int(lm_top_k, 0)
         audio_cover_strength = _coerce_float(audio_cover_strength, 0.5)
+        repainting_start = _coerce_float(repainting_start, -1.0)
+        repainting_end = _coerce_float(repainting_end, -1.0)
 
         # Apply instrumental convenience toggle: overrides lyrics to [Instrumental]
         # only when the lyrics field is empty (user-provided lyrics take priority).
