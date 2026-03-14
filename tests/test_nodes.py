@@ -286,6 +286,30 @@ class TestAcestepCPPGenerateInputTypes:
         assert "repainting_end" in opt
         assert "lego" in opt
 
+    def test_lm_top_k_is_string_type(self):
+        """lm_top_k must be STRING so ComfyUI never runs int('') on stale workflows."""
+        opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
+        assert opt["lm_top_k"][0] == "STRING", (
+            "lm_top_k must be STRING (not INT) so that empty-string widget values "
+            "from older workflows do not trigger ComfyUI's int('') coercion error"
+        )
+
+    def test_repainting_start_is_string_type(self):
+        """repainting_start must be STRING so ComfyUI never runs float('') on stale workflows."""
+        opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
+        assert opt["repainting_start"][0] == "STRING", (
+            "repainting_start must be STRING (not FLOAT) so that empty-string widget "
+            "values from older workflows do not trigger ComfyUI's float('') coercion error"
+        )
+
+    def test_repainting_end_is_string_type(self):
+        """repainting_end must be STRING so ComfyUI never runs float('') on stale workflows."""
+        opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
+        assert opt["repainting_end"][0] == "STRING", (
+            "repainting_end must be STRING (not FLOAT) so that empty-string widget "
+            "values from older workflows do not trigger ComfyUI's float('') coercion error"
+        )
+
     def test_guidance_scale_default_is_zero(self):
         """guidance_scale default must be 0.0 (auto-resolved by the binary)."""
         opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
@@ -323,9 +347,15 @@ class TestAcestepCPPGenerateInputTypes:
 # ===========================================================================
 
 class TestValidateInputs:
-    """VALIDATE_INPUTS must accept empty strings for all numeric optional fields
-    so that older workflows serialised with '' instead of the numeric default
-    pass ComfyUI's prompt-validation stage."""
+    """VALIDATE_INPUTS must accept empty strings and reject non-parseable non-empty
+    strings for the numeric optional fields.
+
+    ``lm_top_k``, ``repainting_start``, and ``repainting_end`` are now STRING
+    widgets (so ComfyUI's own ``int()``/``float()`` coercion never fires on
+    them) while VALIDATE_INPUTS still guards against non-parseable non-empty
+    string values.  ``lm_top_p`` and ``audio_cover_strength`` remain FLOAT;
+    they are in the signature so that stale empty-string values from very old
+    workflows can be caught with a helpful error rather than an exception."""
 
     def _vi(self, **kwargs):
         return nodes.AcestepCPPGenerate.VALIDATE_INPUTS(**kwargs)

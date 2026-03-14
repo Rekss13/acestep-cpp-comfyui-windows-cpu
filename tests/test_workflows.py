@@ -143,14 +143,21 @@ class TestWorkflowStructure:
                 assert isinstance(wv[14], (int, float)), \
                     f"lm_top_p (index 14) should be numeric, got {type(wv[14])}"
 
-    def test_generate_lm_top_k_is_numeric(self, workflow_path):
-        """Widget index 15 (lm_top_k) must be an integer, never an empty string."""
+    def test_generate_lm_top_k_is_valid(self, workflow_path):
+        """Widget index 15 (lm_top_k) must be a non-empty parseable integer string."""
         wf = _load(workflow_path)
         for node in _nodes_by_type(wf, "AcestepCPPGenerate"):
             wv = node.get("widgets_values", [])
             if len(wv) > 15:
-                assert isinstance(wv[15], int), \
-                    f"lm_top_k (index 15) should be int, got {type(wv[15])}: {wv[15]!r}"
+                val = wv[15]
+                assert val != "", \
+                    f"lm_top_k (index 15) must not be an empty string, got {val!r}"
+                try:
+                    int(str(val))
+                except (ValueError, TypeError):
+                    raise AssertionError(
+                        f"lm_top_k (index 15) must be parseable as int, got {val!r}"
+                    )
 
     def test_generate_audio_cover_strength_is_numeric(self, workflow_path):
         """Widget index 18 (audio_cover_strength) must be a number."""
@@ -161,23 +168,37 @@ class TestWorkflowStructure:
                 assert isinstance(wv[18], (int, float)), \
                     f"audio_cover_strength (index 18) should be numeric, got {type(wv[18])}"
 
-    def test_generate_repainting_start_is_numeric(self, workflow_path):
-        """Widget index 19 (repainting_start) must be a number, never an empty string."""
+    def test_generate_repainting_start_is_valid(self, workflow_path):
+        """Widget index 19 (repainting_start) must be a non-empty parseable float string."""
         wf = _load(workflow_path)
         for node in _nodes_by_type(wf, "AcestepCPPGenerate"):
             wv = node.get("widgets_values", [])
             if len(wv) > 19:
-                assert isinstance(wv[19], (int, float)), \
-                    f"repainting_start (index 19) should be numeric, got {type(wv[19])}: {wv[19]!r}"
+                val = wv[19]
+                assert val != "", \
+                    f"repainting_start (index 19) must not be an empty string, got {val!r}"
+                try:
+                    float(str(val))
+                except (ValueError, TypeError):
+                    raise AssertionError(
+                        f"repainting_start (index 19) must be parseable as float, got {val!r}"
+                    )
 
-    def test_generate_repainting_end_is_numeric(self, workflow_path):
-        """Widget index 20 (repainting_end) must be a number, never an empty string."""
+    def test_generate_repainting_end_is_valid(self, workflow_path):
+        """Widget index 20 (repainting_end) must be a non-empty parseable float string."""
         wf = _load(workflow_path)
         for node in _nodes_by_type(wf, "AcestepCPPGenerate"):
             wv = node.get("widgets_values", [])
             if len(wv) > 20:
-                assert isinstance(wv[20], (int, float)), \
-                    f"repainting_end (index 20) should be numeric, got {type(wv[20])}: {wv[20]!r}"
+                val = wv[20]
+                assert val != "", \
+                    f"repainting_end (index 20) must not be an empty string, got {val!r}"
+                try:
+                    float(str(val))
+                except (ValueError, TypeError):
+                    raise AssertionError(
+                        f"repainting_end (index 20) must be parseable as float, got {val!r}"
+                    )
 
     def test_generate_src_audio_is_string(self, workflow_path):
         """Widget index 22 (src_audio) must be a string."""

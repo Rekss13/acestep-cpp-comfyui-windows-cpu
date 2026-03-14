@@ -5,7 +5,7 @@ import multiprocessing
 import shutil
 import subprocess
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import folder_paths
 
@@ -980,12 +980,13 @@ class AcestepCPPGenerate:
                     },
                 ),
                 "lm_top_k": (
-                    "INT",
+                    "STRING",
                     {
-                        "default": 0,
-                        "min": 0,
-                        "max": 1000,
-                        "tooltip": "LM top-k sampling. 0 disables hard top-k (top_p still applies).",
+                        "default": "0",
+                        "tooltip": (
+                            "LM top-k sampling. 0 disables hard top-k (top_p still applies). "
+                            "Accepts integers. Leave empty to use the default (0)."
+                        ),
                     },
                 ),
                 "lm_negative_prompt": (
@@ -1026,28 +1027,24 @@ class AcestepCPPGenerate:
                     },
                 ),
                 "repainting_start": (
-                    "FLOAT",
+                    "STRING",
                     {
-                        "default": -1.0,
-                        "min": -1.0,
-                        "max": 600.0,
-                        "step": 0.5,
+                        "default": "-1.0",
                         "tooltip": (
                             "Repaint region start in seconds (requires src_audio). "
-                            "-1 = inactive (0s when repaint_end is set)."
+                            "-1 = inactive (0s when repaint_end is set). "
+                            "Accepts floats. Leave empty to use the default (-1.0)."
                         ),
                     },
                 ),
                 "repainting_end": (
-                    "FLOAT",
+                    "STRING",
                     {
-                        "default": -1.0,
-                        "min": -1.0,
-                        "max": 600.0,
-                        "step": 0.5,
+                        "default": "-1.0",
                         "tooltip": (
                             "Repaint region end in seconds (requires src_audio). "
-                            "-1 = inactive (source duration when repaint_start is set)."
+                            "-1 = inactive (source duration when repaint_start is set). "
+                            "Accepts floats. Leave empty to use the default (-1.0)."
                         ),
                     },
                 ),
@@ -1136,21 +1133,28 @@ class AcestepCPPGenerate:
     def VALIDATE_INPUTS(
         cls,
         lm_top_p=0.9,
-        lm_top_k=0,
+        lm_top_k="0",
         audio_cover_strength=0.5,
-        repainting_start=-1.0,
-        repainting_end=-1.0,
+        repainting_start="-1.0",
+        repainting_end="-1.0",
         **kwargs,
     ):
-        """Allow older workflows that store numeric inputs as empty strings.
+        """Validate numeric optional inputs and reject non-parseable strings.
 
-        ComfyUI skips its own type-conversion check for any input whose name
-        appears in this method's signature, passing the raw value directly to
-        ``generate()`` instead.  ``_coerce_float`` / ``_coerce_int`` then
+        ``lm_top_k``, ``repainting_start``, and ``repainting_end`` are declared
+        as STRING in INPUT_TYPES so that ComfyUI's validation layer accepts the
+        empty string ``""`` that older serialised workflows may store for those
+        fields (``str("")`` succeeds where ``int("")`` / ``float("")`` would
+        raise).  ``_coerce_int`` / ``_coerce_float`` inside ``generate()``
         convert ``""`` to the numeric default at runtime.
 
-        Empty strings are intentionally allowed — only non-empty strings that
-        cannot be parsed as the expected numeric type are rejected.
+        ``lm_top_p`` and ``audio_cover_strength`` remain FLOAT widgets; they
+        are listed here so that any non-empty string that cannot be parsed as
+        a float is caught and reported before the node runs.
+
+        Note: ComfyUI's VALIDATE_INPUTS bypasses *range* (min/max) checking
+        for listed inputs; it does **not** bypass type conversion — that is
+        why the three new fields use STRING rather than INT/FLOAT.
         """
         for name, val, coerce in (
             ("lm_top_p", lm_top_p, float),
@@ -1184,12 +1188,12 @@ class AcestepCPPGenerate:
         lm_temperature: float = 0.85,
         lm_cfg_scale: float = 2.0,
         lm_top_p: float = 0.9,
-        lm_top_k: int = 0,
+        lm_top_k: Union[str, int] = "0",
         lm_negative_prompt: str = "",
         use_cot_caption: bool = True,
         audio_cover_strength: float = 0.5,
-        repainting_start: float = -1.0,
-        repainting_end: float = -1.0,
+        repainting_start: Union[str, float] = "-1.0",
+        repainting_end: Union[str, float] = "-1.0",
         lego: str = "",
         src_audio: str = "",
         lora_path: str = "",
