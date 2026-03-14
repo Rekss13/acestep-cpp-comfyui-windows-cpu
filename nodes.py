@@ -5,7 +5,7 @@ import multiprocessing
 import shutil
 import subprocess
 import tempfile
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import folder_paths
 
@@ -560,6 +560,127 @@ class AcestepCPPLoraLoader:
         return ({"path": path, "scale": lora_scale},)
 
 
+class AcestepCPPOptions:
+    """
+    Advanced technical options for acestep.cpp generation.
+
+    Configures output format, VAE memory tiling, batch counts, and debug
+    flags that are typically set once and reused across multiple generations.
+    Connect the output to the **Acestep.cpp Generate** node's ``options``
+    input.  All parameters are optional — unset fields fall back to their
+    acestep.cpp defaults.
+    """
+
+    OUTPUT_FORMATS = ["mp3", "wav"]
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "optional": {
+                # Output format
+                "output_format": (
+                    cls.OUTPUT_FORMATS,
+                    {
+                        "default": "mp3",
+                        "tooltip": "Audio output format: MP3 (smaller) or WAV (lossless)",
+                    },
+                ),
+                "mp3_bitrate": (
+                    "INT",
+                    {
+                        "default": 128,
+                        "min": 64,
+                        "max": 320,
+                        "tooltip": "MP3 bitrate in kbps (only used when output_format is 'mp3')",
+                    },
+                ),
+                # VAE memory control
+                "vae_chunk": (
+                    "INT",
+                    {
+                        "default": 256,
+                        "min": 16,
+                        "max": 1024,
+                        "tooltip": (
+                            "VAE latent frames per tile (default: 256). "
+                            "Reduce to lower VRAM usage at the cost of speed."
+                        ),
+                    },
+                ),
+                "vae_overlap": (
+                    "INT",
+                    {
+                        "default": 64,
+                        "min": 0,
+                        "max": 256,
+                        "tooltip": "VAE overlap frames per side (default: 64)",
+                    },
+                ),
+                # Batch generation
+                "lm_batch": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 9,
+                        "tooltip": (
+                            "Number of LM (ace-qwen3) sequences to generate in parallel. "
+                            "Each element produces a genuinely different song from a different seed."
+                        ),
+                    },
+                ),
+                "dit_batch": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 9,
+                        "tooltip": (
+                            "Number of DiT (dit-vae) variations per LM output (max 9). "
+                            "Variations share the same prompt but differ in initial noise."
+                        ),
+                    },
+                ),
+                # Advanced / debug
+                "no_flash_attn": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "Disable flash attention in both ace-qwen3 and dit-vae",
+                        "label_on": "Disabled",
+                        "label_off": "Enabled",
+                    },
+                ),
+                "lm_max_seq": (
+                    "INT",
+                    {
+                        "default": 8192,
+                        "min": 1024,
+                        "max": 65536,
+                        "tooltip": "ace-qwen3 KV cache size in tokens (default: 8192)",
+                    },
+                ),
+                "lm_no_fsm": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "Disable FSM constrained decoding in ace-qwen3",
+                        "label_on": "Disabled",
+                        "label_off": "Enabled",
+                    },
+                ),
+            }
+        }
+
+    RETURN_TYPES = ("ACESTEP_OPTIONS",)
+    RETURN_NAMES = ("options",)
+    FUNCTION = "get_options"
+    CATEGORY = "AcestepCPP"
+
+    def get_options(self, **kwargs) -> Tuple:
+        return (dict(kwargs),)
+
+
 class AcestepCPPModelLoader:
     """
     Select the four GGUF model files required by acestep.cpp.
@@ -649,14 +770,19 @@ class AcestepCPPGenerate:
     """
     Generate music with acestep.cpp.
 
-    Runs ``ace-qwen3`` (LM) followed by ``dit-vae`` (DiT + VAE) and returns
-    the result as a ComfyUI AUDIO tensor.
+    Runs ``ace-qwen3`` (LM) then ``dit-vae`` (DiT + VAE) and returns the
+    result as a ComfyUI AUDIO tensor.  Connect an **AcestepCPPOptions** node
+    to the ``options`` input to control output format, batching, VAE tiling,
+    and advanced debug flags.
     """
 
     VOCAL_LANGUAGES = [
-        "unknown", "en", "zh", "fr", "de", "es", "ja", "ko", "pt", "ru", "it",
+        "", "en", "zh", "fr", "de", "es", "ja", "ko", "pt", "ru", "it", "unknown",
     ]
-    TASK_TYPES = ["text2music", "cover", "repaint"]
+    LEGO_TRACKS = [
+        "", "vocals", "backing_vocals", "drums", "bass", "guitar",
+        "keyboard", "percussion", "strings", "synth", "fx", "brass", "woodwinds",
+    ]
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -671,43 +797,62 @@ class AcestepCPPGenerate:
                     {
                         "multiline": True,
                         "default": "Upbeat pop rock with driving guitars and catchy hooks",
-                        "tooltip": "Music style/description passed to the LM",
+                        "tooltip": (
+                            "Natural language description of the music style, mood, "
+                            "instruments, etc. Fed to both the LM and the DiT text encoder."
+                        ),
                     },
                 ),
             },
             "optional": {
+                # ---- Lyrics / vocal content ----
                 "lyrics": (
                     "STRING",
                     {
                         "multiline": True,
                         "default": "",
-                        "tooltip": "Song lyrics (leave empty for the LM to generate)",
+                        "tooltip": (
+                            "Song lyrics. Leave empty for the LM to generate them. "
+                            "Set to '[Instrumental]' (or enable the instrumental toggle) "
+                            "for no vocals."
+                        ),
                     },
-                ),
-                "task_type": (
-                    cls.TASK_TYPES,
-                    {"default": "text2music", "tooltip": "Generation mode"},
                 ),
                 "instrumental": (
                     "BOOLEAN",
                     {
                         "default": False,
-                        "tooltip": "Generate an instrumental track (no vocals)",
+                        "tooltip": (
+                            "Convenience toggle: when enabled and lyrics is empty, "
+                            "sets lyrics to '[Instrumental]' so the DiT generates no vocals."
+                        ),
                         "label_on": "Instrumental",
                         "label_off": "Vocal",
                     },
                 ),
+                # ---- Music metadata (LLM-filled when unset) ----
                 "vocal_language": (
                     cls.VOCAL_LANGUAGES,
-                    {"default": "unknown", "tooltip": "Language of the vocals"},
+                    {
+                        "default": "",
+                        "tooltip": (
+                            "BCP-47 language code for lyrics (e.g. 'en', 'fr', 'ja'). "
+                            "Leave empty for the LM to detect. "
+                            "Set to 'unknown' for an explicit no-language signal."
+                        ),
+                    },
                 ),
                 "duration": (
-                    "INT",
+                    "FLOAT",
                     {
-                        "default": -1,
-                        "min": -1,
-                        "max": 300,
-                        "tooltip": "Duration in seconds (-1 lets the LM decide)",
+                        "default": 0.0,
+                        "min": 0.0,
+                        "max": 600.0,
+                        "step": 1.0,
+                        "tooltip": (
+                            "Target audio duration in seconds. "
+                            "0 lets the LM decide (clamped to [1, 600] s after generation)."
+                        ),
                     },
                 ),
                 "bpm": (
@@ -723,33 +868,46 @@ class AcestepCPPGenerate:
                     "STRING",
                     {
                         "default": "",
-                        "tooltip": "Key and scale, e.g. 'C major' (leave empty for the LM to decide)",
+                        "tooltip": (
+                            "Musical key and scale, e.g. 'C major' or 'F# minor'. "
+                            "Leave empty for the LM to decide."
+                        ),
                     },
                 ),
                 "timesignature": (
                     "STRING",
                     {
                         "default": "",
-                        "tooltip": "Time signature, e.g. '4/4' (leave empty for the LM to decide)",
+                        "tooltip": (
+                            "Time signature numerator, e.g. '4' for 4/4, '3' for 3/4. "
+                            "Leave empty for the LM to decide."
+                        ),
                     },
                 ),
+                # ---- DiT flow-matching ----
                 "inference_steps": (
                     "INT",
                     {
                         "default": 8,
                         "min": 1,
                         "max": 200,
-                        "tooltip": "DiT diffusion steps (8 = turbo preset, 50 = SFT preset)",
+                        "tooltip": (
+                            "Number of DiT denoising steps. "
+                            "Turbo preset: 8. SFT preset: 50."
+                        ),
                     },
                 ),
                 "guidance_scale": (
                     "FLOAT",
                     {
-                        "default": 7.0,
-                        "min": 1.0,
+                        "default": 0.0,
+                        "min": 0.0,
                         "max": 20.0,
                         "step": 0.1,
-                        "tooltip": "Classifier-free guidance scale (ignored by turbo models)",
+                        "tooltip": (
+                            "CFG scale for the DiT. 0.0 is auto-resolved to 1.0 at runtime "
+                            "(CFG disabled). Values > 1.0 on a turbo model are overridden to 1.0."
+                        ),
                     },
                 ),
                 "shift": (
@@ -759,7 +917,10 @@ class AcestepCPPGenerate:
                         "min": 0.0,
                         "max": 20.0,
                         "step": 0.1,
-                        "tooltip": "Flow-matching shift (3.0 = turbo preset, 6.0 = SFT preset)",
+                        "tooltip": (
+                            "Flow-matching schedule shift. "
+                            "Turbo preset: 3.0. SFT preset: 1.0."
+                        ),
                     },
                 ),
                 "seed": (
@@ -767,9 +928,10 @@ class AcestepCPPGenerate:
                     {
                         "default": -1,
                         "min": -1,
-                        "tooltip": "Random seed (-1 for a random seed)",
+                        "tooltip": "Random seed (-1 picks a random seed at runtime)",
                     },
                 ),
+                # ---- LM sampling ----
                 "lm_temperature": (
                     "FLOAT",
                     {
@@ -777,7 +939,10 @@ class AcestepCPPGenerate:
                         "min": 0.0,
                         "max": 2.0,
                         "step": 0.01,
-                        "tooltip": "LM sampling temperature",
+                        "tooltip": (
+                            "LM sampling temperature for both phase 1 (lyrics/metadata) "
+                            "and phase 2 (audio codes). Lower = more deterministic."
+                        ),
                     },
                 ),
                 "lm_cfg_scale": (
@@ -787,7 +952,10 @@ class AcestepCPPGenerate:
                         "min": 0.0,
                         "max": 10.0,
                         "step": 0.1,
-                        "tooltip": "LM classifier-free guidance scale",
+                        "tooltip": (
+                            "LM classifier-free guidance scale. Active in phase 2 and in "
+                            "phase 1 when lyrics are provided. 1.0 disables CFG."
+                        ),
                     },
                 ),
                 "lm_top_p": (
@@ -797,7 +965,16 @@ class AcestepCPPGenerate:
                         "min": 0.0,
                         "max": 1.0,
                         "step": 0.01,
-                        "tooltip": "LM nucleus (top-p) sampling probability",
+                        "tooltip": "LM nucleus (top-p) sampling cutoff. 1.0 disables.",
+                    },
+                ),
+                "lm_top_k": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 1000,
+                        "tooltip": "LM top-k sampling. 0 disables hard top-k (top_p still applies).",
                     },
                 ),
                 "lm_negative_prompt": (
@@ -805,38 +982,95 @@ class AcestepCPPGenerate:
                     {
                         "multiline": True,
                         "default": "",
-                        "tooltip": "Negative prompt for the LM",
+                        "tooltip": (
+                            "Negative caption for LM CFG in phase 2. "
+                            "Empty falls back to a caption-less unconditional prompt."
+                        ),
                     },
                 ),
-                "reference_audio": (
-                    "STRING",
+                "use_cot_caption": (
+                    "BOOLEAN",
                     {
-                        "default": "",
-                        "tooltip": "Path to a WAV/MP3 reference file for timbre transfer",
+                        "default": True,
+                        "tooltip": (
+                            "When True, the LM enriches the caption via CoT and the enriched "
+                            "version is fed to the DiT. When False, the user caption is used verbatim."
+                        ),
+                        "label_on": "Enabled",
+                        "label_off": "Disabled",
                     },
                 ),
+                # ---- Source audio (cover / repaint / lego) ----
                 "src_audio": (
                     "STRING",
                     {
                         "default": "",
-                        "tooltip": "Path to a WAV/MP3 source file for cover mode",
+                        "tooltip": (
+                            "Path to a WAV or MP3 source file. Used for cover, repaint, "
+                            "and lego modes. Prefer connecting 'src_audio_input' from a "
+                            "Load Audio node instead."
+                        ),
                     },
                 ),
                 "audio_cover_strength": (
                     "FLOAT",
                     {
-                        "default": 1.0,
+                        "default": 0.5,
                         "min": 0.0,
                         "max": 1.0,
                         "step": 0.01,
-                        "tooltip": "Cover influence strength (0 = silence, 1 = full cover)",
+                        "tooltip": (
+                            "Fraction of DiT steps that use the source audio as context "
+                            "(only with src_audio). 0.0 = pure text-to-music, 1.0 = near-passthrough."
+                        ),
                     },
                 ),
+                "repainting_start": (
+                    "FLOAT",
+                    {
+                        "default": -1.0,
+                        "min": -1.0,
+                        "max": 600.0,
+                        "step": 0.5,
+                        "tooltip": (
+                            "Repaint region start in seconds (requires src_audio). "
+                            "-1 = inactive (0s when repaint_end is set)."
+                        ),
+                    },
+                ),
+                "repainting_end": (
+                    "FLOAT",
+                    {
+                        "default": -1.0,
+                        "min": -1.0,
+                        "max": 600.0,
+                        "step": 0.5,
+                        "tooltip": (
+                            "Repaint region end in seconds (requires src_audio). "
+                            "-1 = inactive (source duration when repaint_start is set)."
+                        ),
+                    },
+                ),
+                "lego": (
+                    cls.LEGO_TRACKS,
+                    {
+                        "default": "",
+                        "tooltip": (
+                            "Lego mode: generate one instrument track layered over an "
+                            "existing backing track (requires src_audio and the base model). "
+                            "Leave empty to disable."
+                        ),
+                    },
+                ),
+                # ---- LoRA adapter (convenience widgets) ----
                 "lora_path": (
                     "STRING",
                     {
                         "default": "",
-                        "tooltip": "Optional path to a DiT LoRA adapter file",
+                        "tooltip": (
+                            "Path to a DiT LoRA adapter file (.safetensors or PEFT directory). "
+                            "Use the LoRA Loader node instead for validated path input."
+                        ),
                     },
                 ),
                 "lora_scale": (
@@ -849,21 +1083,12 @@ class AcestepCPPGenerate:
                         "tooltip": "LoRA adapter scale",
                     },
                 ),
-                "reference_audio_input": (
-                    "AUDIO",
-                    {
-                        "tooltip": (
-                            "Reference audio for timbre transfer, connected from a "
-                            "Load Audio node. Overrides the 'reference_audio' path "
-                            "string when connected."
-                        ),
-                    },
-                ),
+                # ---- Node connections ----
                 "src_audio_input": (
                     "AUDIO",
                     {
                         "tooltip": (
-                            "Source audio for cover/repaint mode, connected from a "
+                            "Source audio for cover/repaint/lego mode, connected from a "
                             "Load Audio node. Overrides the 'src_audio' path string "
                             "when connected."
                         ),
@@ -878,6 +1103,15 @@ class AcestepCPPGenerate:
                         ),
                     },
                 ),
+                "options": (
+                    "ACESTEP_OPTIONS",
+                    {
+                        "tooltip": (
+                            "Advanced options from the Acestep.cpp Options node. "
+                            "Controls output format, VAE tiling, batch size, and debug flags."
+                        ),
+                    },
+                ),
             },
         }
 
@@ -887,7 +1121,7 @@ class AcestepCPPGenerate:
     CATEGORY = "AcestepCPP"
 
     @classmethod
-    def VALIDATE_INPUTS(cls, lm_top_p=0.9, audio_cover_strength=1.0, **kwargs):
+    def VALIDATE_INPUTS(cls, lm_top_p=0.9, audio_cover_strength=0.5, **kwargs):
         """Allow older workflows that store lm_top_p / audio_cover_strength as
         an empty string instead of a float.
 
@@ -916,36 +1150,47 @@ class AcestepCPPGenerate:
         models: Dict[str, Any],
         caption: str,
         lyrics: str = "",
-        task_type: str = "text2music",
         instrumental: bool = False,
-        vocal_language: str = "unknown",
-        duration: int = -1,
+        vocal_language: str = "",
+        duration: float = 0.0,
         bpm: int = 0,
         keyscale: str = "",
         timesignature: str = "",
         inference_steps: int = 8,
-        guidance_scale: float = 7.0,
+        guidance_scale: float = 0.0,
         shift: float = 3.0,
         seed: int = -1,
         lm_temperature: float = 0.85,
         lm_cfg_scale: float = 2.0,
         lm_top_p: float = 0.9,
+        lm_top_k: int = 0,
         lm_negative_prompt: str = "",
-        reference_audio: str = "",
+        use_cot_caption: bool = True,
         src_audio: str = "",
-        audio_cover_strength: float = 1.0,
+        audio_cover_strength: float = 0.5,
+        repainting_start: float = -1.0,
+        repainting_end: float = -1.0,
+        lego: str = "",
         lora_path: str = "",
         lora_scale: float = 1.0,
-        reference_audio_input: Optional[Dict[str, Any]] = None,
         src_audio_input: Optional[Dict[str, Any]] = None,
         lora: Optional[Dict[str, Any]] = None,
+        options: Optional[Dict[str, Any]] = None,
     ):
         import torchaudio
+
+        # Merge options dict (from AcestepCPPOptions) with defaults.
+        opts: Dict[str, Any] = options or {}
 
         # Coerce optional FLOAT inputs that may arrive as empty strings from
         # workflows saved with an older version of the node schema.
         lm_top_p = _coerce_float(lm_top_p, 0.9)
-        audio_cover_strength = _coerce_float(audio_cover_strength, 1.0)
+        audio_cover_strength = _coerce_float(audio_cover_strength, 0.5)
+
+        # Apply instrumental convenience toggle: overrides lyrics to [Instrumental]
+        # only when the lyrics field is empty (user-provided lyrics take priority).
+        if instrumental and not lyrics.strip():
+            lyrics = "[Instrumental]"
 
         ace_qwen3 = get_binary_path("ace-qwen3")
         dit_vae = get_binary_path("dit-vae")
@@ -963,24 +1208,14 @@ class AcestepCPPGenerate:
                 "or run install.py from the node directory."
             )
 
-        # If a LoRA was supplied via the LoRA Loader node, it takes priority
-        # over the freeform lora_path / lora_scale widget values.
+        # LoRA Loader node takes priority over freeform widgets.
         if lora is not None:
             lora_path = lora["path"]
             lora_scale = lora["scale"]
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Materialise AUDIO tensor inputs as WAV files so the binary can
-            # read them.  These override the freeform string-path widgets.
-            if reference_audio_input is not None:
-                ref_wav = os.path.join(tmpdir, "reference_audio.wav")
-                torchaudio.save(
-                    ref_wav,
-                    reference_audio_input["waveform"].squeeze(0),
-                    reference_audio_input["sample_rate"],
-                )
-                reference_audio = ref_wav
-
+            # Materialise AUDIO tensor input as a WAV file so the binary can
+            # read it.  This overrides the freeform string-path widget.
             if src_audio_input is not None:
                 src_wav = os.path.join(tmpdir, "src_audio.wav")
                 torchaudio.save(
@@ -992,43 +1227,66 @@ class AcestepCPPGenerate:
 
             request_path = os.path.join(tmpdir, "request.json")
 
+            # Build the request JSON following the acestep.cpp reference:
+            # https://github.com/ServeurpersoCom/acestep.cpp#request-json-reference
             request: Dict[str, Any] = {
-                "task_type": task_type,
                 "caption": caption,
                 "lyrics": lyrics,
-                "instrumental": instrumental,
-                "vocal_language": vocal_language,
-                "duration": duration,
                 "bpm": bpm,
+                "duration": duration,
+                "vocal_language": vocal_language,
                 "seed": seed,
                 "lm_temperature": lm_temperature,
                 "lm_cfg_scale": lm_cfg_scale,
                 "lm_top_p": lm_top_p,
+                "lm_top_k": lm_top_k,
                 "lm_negative_prompt": lm_negative_prompt,
+                "use_cot_caption": use_cot_caption,
                 "inference_steps": inference_steps,
                 "guidance_scale": guidance_scale,
                 "shift": shift,
                 "audio_cover_strength": audio_cover_strength,
             }
 
+            # Optional metadata fields: only include when explicitly set so
+            # the LM fills them via CoT when absent.
             if keyscale.strip():
                 request["keyscale"] = keyscale.strip()
             if timesignature.strip():
                 request["timesignature"] = timesignature.strip()
-            if reference_audio.strip():
-                request["reference_audio"] = reference_audio.strip()
-            if src_audio.strip():
-                request["src_audio"] = src_audio.strip()
+
+            # Repaint region (only meaningful with --src-audio)
+            if repainting_start >= 0.0:
+                request["repainting_start"] = repainting_start
+            if repainting_end >= 0.0:
+                request["repainting_end"] = repainting_end
+
+            # Lego mode (requires --src-audio and base model)
+            if lego.strip():
+                request["lego"] = lego.strip()
 
             with open(request_path, "w") as f:
                 json.dump(request, f)
 
-            # Step 1 -- LM: ace-qwen3 -> request0.json
+            # ----------------------------------------------------------------
+            # Step 1 – LM: ace-qwen3 → request0.json (request1.json …)
+            # ----------------------------------------------------------------
+            lm_batch: int = int(opts.get("lm_batch", 1))
             lm_cmd = [
                 ace_qwen3,
                 "--request", request_path,
                 "--model", models["lm_model"],
             ]
+            if lm_batch > 1:
+                lm_cmd += ["--batch", str(lm_batch)]
+            if opts.get("no_flash_attn", False):
+                lm_cmd += ["--no-fa"]
+            lm_max_seq: int = int(opts.get("lm_max_seq", 8192))
+            if lm_max_seq != 8192:
+                lm_cmd += ["--max-seq", str(lm_max_seq)]
+            if opts.get("lm_no_fsm", False):
+                lm_cmd += ["--no-fsm"]
+
             lm_result = subprocess.run(
                 lm_cmd, capture_output=True, text=True, cwd=tmpdir
             )
@@ -1045,16 +1303,46 @@ class AcestepCPPGenerate:
                     f"stdout: {lm_result.stdout}\nstderr: {lm_result.stderr}"
                 )
 
-            # Step 2 -- DiT+VAE: dit-vae -> request00.wav
+            # ----------------------------------------------------------------
+            # Step 2 – DiT+VAE: dit-vae → request00.{mp3|wav}
+            # ----------------------------------------------------------------
+            output_format: str = opts.get("output_format", "mp3")
+            mp3_bitrate: int = int(opts.get("mp3_bitrate", 128))
+            vae_chunk: int = int(opts.get("vae_chunk", 256))
+            vae_overlap: int = int(opts.get("vae_overlap", 64))
+            dit_batch: int = int(opts.get("dit_batch", 1))
+
             dit_cmd = [
                 dit_vae,
                 "--request", lm_output,
                 "--text-encoder", models["text_encoder"],
                 "--dit", models["dit"],
                 "--vae", models["vae"],
+                "--vae-chunk", str(vae_chunk),
+                "--vae-overlap", str(vae_overlap),
             ]
+
+            # Source audio (cover, repaint, lego modes)
+            if src_audio.strip():
+                dit_cmd += ["--src-audio", src_audio.strip()]
+
+            # LoRA adapter
             if lora_path.strip():
                 dit_cmd += ["--lora", lora_path.strip(), "--lora-scale", str(lora_scale)]
+
+            # Output format
+            if output_format == "wav":
+                dit_cmd += ["--wav"]
+            else:
+                dit_cmd += ["--mp3-bitrate", str(mp3_bitrate)]
+
+            # Batch
+            if dit_batch > 1:
+                dit_cmd += ["--batch", str(dit_batch)]
+
+            # Flash attention
+            if opts.get("no_flash_attn", False):
+                dit_cmd += ["--no-fa"]
 
             dit_result = subprocess.run(
                 dit_cmd, capture_output=True, text=True, cwd=tmpdir
@@ -1065,14 +1353,16 @@ class AcestepCPPGenerate:
                     f"{dit_result.stderr}"
                 )
 
-            wav_path = os.path.join(tmpdir, "request00.wav")
-            if not os.path.isfile(wav_path):
+            # Locate the first output file (request00.mp3 or request00.wav)
+            ext = ".wav" if output_format == "wav" else ".mp3"
+            audio_path = os.path.join(tmpdir, f"request00{ext}")
+            if not os.path.isfile(audio_path):
                 raise RuntimeError(
-                    "dit-vae did not produce request00.wav.\n"
+                    f"dit-vae did not produce request00{ext}.\n"
                     f"stdout: {dit_result.stdout}\nstderr: {dit_result.stderr}"
                 )
 
-            waveform, sample_rate = torchaudio.load(wav_path)
+            waveform, sample_rate = torchaudio.load(audio_path)
             # ComfyUI AUDIO format: waveform shape (batch, channels, samples)
             audio = {"waveform": waveform.unsqueeze(0), "sample_rate": sample_rate}
 

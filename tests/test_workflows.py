@@ -110,33 +110,41 @@ class TestWorkflowStructure:
                     f"Unexpected model name in ModelLoader: {v!r}"
 
     # --- Generate node widget value types --------------------------------
+    # New widget order (redesigned node, no task_type / reference_audio):
+    # 0:caption 1:lyrics 2:instrumental 3:vocal_language 4:duration 5:bpm
+    # 6:keyscale 7:timesignature 8:inference_steps 9:guidance_scale 10:shift
+    # 11:seed 12:lm_temperature 13:lm_cfg_scale 14:lm_top_p 15:lm_top_k
+    # 16:lm_negative_prompt 17:use_cot_caption 18:audio_cover_strength
+    # 19:repainting_start 20:repainting_end 21:lego 22:src_audio
+    # 23:lora_path 24:lora_scale
 
     def test_generate_lm_top_p_is_numeric(self, workflow_path):
-        """Widget index 15 (lm_top_p) must be a number, never an empty string."""
+        """Widget index 14 (lm_top_p) must be a number, never an empty string."""
         wf = _load(workflow_path)
         for node in _nodes_by_type(wf, "AcestepCPPGenerate"):
             wv = node.get("widgets_values", [])
-            if len(wv) > 15:
-                assert isinstance(wv[15], (int, float)), \
-                    f"lm_top_p (index 15) should be numeric, got {type(wv[15])}"
+            if len(wv) > 14:
+                assert isinstance(wv[14], (int, float)), \
+                    f"lm_top_p (index 14) should be numeric, got {type(wv[14])}"
 
     def test_generate_audio_cover_strength_is_numeric(self, workflow_path):
-        """Widget index 19 (audio_cover_strength) must be a number."""
+        """Widget index 18 (audio_cover_strength) must be a number."""
         wf = _load(workflow_path)
         for node in _nodes_by_type(wf, "AcestepCPPGenerate"):
             wv = node.get("widgets_values", [])
-            if len(wv) > 19:
-                assert isinstance(wv[19], (int, float)), \
-                    f"audio_cover_strength (index 19) should be numeric, got {type(wv[19])}"
+            if len(wv) > 18:
+                assert isinstance(wv[18], (int, float)), \
+                    f"audio_cover_strength (index 18) should be numeric, got {type(wv[18])}"
 
-    def test_generate_task_type_is_valid(self, workflow_path):
-        valid = {"text2music", "cover", "repaint"}
+    def test_generate_no_task_type(self, workflow_path):
+        """task_type is not a valid acestep.cpp field — must not appear in nodes."""
         wf = _load(workflow_path)
         for node in _nodes_by_type(wf, "AcestepCPPGenerate"):
+            # widget index 2 should be instrumental (bool), not a task_type string
             wv = node.get("widgets_values", [])
             if len(wv) > 2:
-                assert wv[2] in valid, \
-                    f"task_type (index 2) must be one of {valid}, got {wv[2]!r}"
+                assert not (isinstance(wv[2], str) and wv[2] in {"text2music", "cover", "repaint"}), \
+                    "task_type string found at widget index 2 — node should use new API"
 
     # --- extra.models download metadata ----------------------------------
 
