@@ -77,24 +77,24 @@ class TestWorkflowStructure:
         assert _nodes_by_type(wf, "AcestepCPPGenerate"), \
             "Workflow must include AcestepCPPGenerate"
 
-    # --- Output: generate node exposes AUDIO for downstream nodes -----------
+    # --- Output: generate node exposes STRING filepath for downstream nodes ---
 
-    def test_has_preview_audio_node(self, workflow_path):
-        """Each workflow must include a PreviewAudio node connected to AcestepCPPGenerate."""
+    def test_has_audio_loader_node(self, workflow_path):
+        """Each workflow must include an AudioLoader node connected to AcestepCPPGenerate."""
         wf = _load(workflow_path)
         node_types = [n["type"] for n in wf["nodes"]]
-        assert "PreviewAudio" in node_types, \
-            "Workflow must include a PreviewAudio node to display generated audio"
+        assert "AudioLoader" in node_types, \
+            "Workflow must include an AudioLoader node to load the generated audio by file path"
 
-    def test_generate_has_audio_output_link(self, workflow_path):
-        """AcestepCPPGenerate must expose an AUDIO output connected to PreviewAudio."""
+    def test_generate_has_filepath_output_link(self, workflow_path):
+        """AcestepCPPGenerate must expose a STRING (filepath) output connected to AudioLoader."""
         wf = _load(workflow_path)
         for node in _nodes_by_type(wf, "AcestepCPPGenerate"):
-            audio_outputs = [o for o in node.get("outputs", []) if o.get("type") == "AUDIO"]
-            assert audio_outputs, \
-                "AcestepCPPGenerate must have an AUDIO output slot"
-            assert audio_outputs[0].get("links"), \
-                "AcestepCPPGenerate AUDIO output must be connected to a downstream node"
+            filepath_outputs = [o for o in node.get("outputs", []) if o.get("type") == "STRING"]
+            assert filepath_outputs, \
+                "AcestepCPPGenerate must have a STRING (filepath) output slot"
+            assert filepath_outputs[0].get("links"), \
+                "AcestepCPPGenerate STRING output must be connected to a downstream node"
 
     # --- Model loader widget values ---------------------------------------
 
