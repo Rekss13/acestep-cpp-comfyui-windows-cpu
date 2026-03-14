@@ -1012,17 +1012,6 @@ class AcestepCPPGenerate:
                     },
                 ),
                 # ---- Source audio (cover / repaint / lego) ----
-                "src_audio": (
-                    "STRING",
-                    {
-                        "default": "",
-                        "tooltip": (
-                            "Path to a WAV or MP3 source file. Used for cover, repaint, "
-                            "and lego modes. Prefer connecting 'src_audio_input' from a "
-                            "Load Audio node instead."
-                        ),
-                    },
-                ),
                 "audio_cover_strength": (
                     "FLOAT",
                     {
@@ -1070,6 +1059,18 @@ class AcestepCPPGenerate:
                             "Lego mode: generate one instrument track layered over an "
                             "existing backing track (requires src_audio and the base model). "
                             "Leave empty to disable."
+                        ),
+                    },
+                ),
+                # ---- Source audio path (string widget) ----
+                "src_audio": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "tooltip": (
+                            "Path to a WAV or MP3 source file. Used for cover, repaint, "
+                            "and lego modes. Prefer connecting 'src_audio_input' from a "
+                            "Load Audio node instead."
                         ),
                     },
                 ),
@@ -1132,26 +1133,35 @@ class AcestepCPPGenerate:
     CATEGORY = "AcestepCPP"
 
     @classmethod
-    def VALIDATE_INPUTS(cls, lm_top_p=0.9, audio_cover_strength=0.5, **kwargs):
-        """Allow older workflows that store lm_top_p / audio_cover_strength as
-        an empty string instead of a float.
+    def VALIDATE_INPUTS(
+        cls,
+        lm_top_p=0.9,
+        lm_top_k=0,
+        audio_cover_strength=0.5,
+        repainting_start=-1.0,
+        repainting_end=-1.0,
+        **kwargs,
+    ):
+        """Allow older workflows that store numeric inputs as empty strings.
 
-        ComfyUI skips its own ``float()`` conversion check for any input whose
-        name appears in this method's signature, passing the raw value directly
-        to ``generate()`` instead.  ``_coerce_float`` then converts ``""`` to
-        the numeric default at runtime.
+        ComfyUI skips its own type-conversion check for any input whose name
+        appears in this method's signature, passing the raw value directly to
+        ``generate()`` instead.  ``_coerce_float`` / ``_coerce_int`` then
+        convert ``""`` to the numeric default at runtime.
 
-        Empty strings are intentionally allowed here — they will be coerced to
-        the numeric default by ``_coerce_float`` inside ``generate()``.  Only
-        non-empty strings that cannot be parsed as a float are rejected.
+        Empty strings are intentionally allowed — only non-empty strings that
+        cannot be parsed as the expected numeric type are rejected.
         """
-        for name, val in (
-            ("lm_top_p", lm_top_p),
-            ("audio_cover_strength", audio_cover_strength),
+        for name, val, coerce in (
+            ("lm_top_p", lm_top_p, float),
+            ("lm_top_k", lm_top_k, int),
+            ("audio_cover_strength", audio_cover_strength, float),
+            ("repainting_start", repainting_start, float),
+            ("repainting_end", repainting_end, float),
         ):
             if isinstance(val, str) and val.strip():
                 try:
-                    float(val)
+                    coerce(val)
                 except ValueError:
                     return f"Invalid value for {name}: {val!r}"
         return True
@@ -1177,11 +1187,11 @@ class AcestepCPPGenerate:
         lm_top_k: int = 0,
         lm_negative_prompt: str = "",
         use_cot_caption: bool = True,
-        src_audio: str = "",
         audio_cover_strength: float = 0.5,
         repainting_start: float = -1.0,
         repainting_end: float = -1.0,
         lego: str = "",
+        src_audio: str = "",
         lora_path: str = "",
         lora_scale: float = 1.0,
         src_audio_input: Optional[Dict[str, Any]] = None,
