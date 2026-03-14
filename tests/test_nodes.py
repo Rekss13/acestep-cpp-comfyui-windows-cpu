@@ -331,7 +331,10 @@ class TestAcestepCPPGenerateInputTypes:
         assert "reference_audio_input" not in opt
 
     def test_return_types(self):
-        assert nodes.AcestepCPPGenerate.RETURN_TYPES == ()
+        assert nodes.AcestepCPPGenerate.RETURN_TYPES == ("AUDIO",)
+
+    def test_return_names(self):
+        assert nodes.AcestepCPPGenerate.RETURN_NAMES == ("audio",)
 
     def test_is_output_node(self):
         assert nodes.AcestepCPPGenerate.OUTPUT_NODE is True
@@ -342,11 +345,10 @@ class TestAcestepCPPGenerateInputTypes:
         opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
         assert "src_audio_input" not in opt
 
-    def test_no_audio_tensor_output(self):
-        """Generate is a terminal OUTPUT_NODE that renders an inline player.
-        It must NOT include an AUDIO tensor in its return types — the binary
-        writes MP3/WAV natively so no Python decoding is needed."""
-        assert nodes.AcestepCPPGenerate.RETURN_TYPES == ()
+    def test_audio_tensor_output(self):
+        """Generate must expose an AUDIO output so PreviewAudio / SaveAudio
+        nodes can be connected to it in user workflows."""
+        assert nodes.AcestepCPPGenerate.RETURN_TYPES == ("AUDIO",)
         assert nodes.AcestepCPPGenerate.OUTPUT_NODE is True
 
     def test_lego_tracks_list(self):
@@ -633,27 +635,30 @@ class TestGetBinaryPath:
 # ===========================================================================
 
 class TestNoPythonAudioProcessing:
-    """These tests enforce that the node never imports Python audio-decoding
-    libraries.  The binary handles both WAV and MP3 natively on the input side
-    (src_audio path) and writes the output file natively; ComfyUI renders an
-    inline player directly from the saved file.  No torchaudio, torch, wave,
-    numpy, soundfile, or ffmpeg-python are needed."""
+    """These tests enforce that the node does not import Python audio-decoding
+    libraries at module level (which would bloat startup time).  torchaudio is
+    allowed as a *lazy* import inside generate() so that PreviewAudio/SaveAudio
+    nodes can receive the generated audio.  The binary still handles WAV and MP3
+    natively on the input side (src_audio path) and writes output natively."""
 
     _AUDIO_LIBS = ["torchaudio", "torch", "wave", "numpy", "soundfile", "pydub"]
 
     def test_no_audio_decode_imports_at_module_level(self):
-        """None of the Python audio-decoding libraries must appear in the
-        top-level imports of nodes.py (they would be pulled in unconditionally
-        at ComfyUI startup time, bloating the environment requirement)."""
+        """None of the Python audio-decoding libraries must appear as true
+        module-level (non-indented) imports in nodes.py — they would be pulled
+        in unconditionally at ComfyUI startup time.  Lazy imports *inside*
+        functions are permitted."""
         with open(nodes.__file__) as f:
             nodes_src = f.read()
-        import_lines = [
-            ln.strip()
+        # Only consider non-indented lines that are import statements
+        # (indented imports are lazy/conditional and do not affect startup).
+        module_level_import_lines = [
+            ln
             for ln in nodes_src.splitlines()
-            if ln.strip().startswith("import ") or ln.strip().startswith("from ")
+            if (ln.startswith("import ") or ln.startswith("from "))
         ]
         for lib in self._AUDIO_LIBS:
-            for ln in import_lines:
+            for ln in module_level_import_lines:
                 assert lib not in ln, (
                     f"nodes.py imports audio-decoding library '{lib}' at module level: {ln!r}"
                 )
@@ -665,7 +670,7 @@ class TestNoPythonAudioProcessing:
         opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
         assert "src_audio_input" not in opt
 
-    def test_generate_return_types_empty(self):
-        """RETURN_TYPES must be () — the binary writes the output audio file
-        directly; no Python decoding is needed to pipe it downstream."""
-        assert nodes.AcestepCPPGenerate.RETURN_TYPES == ()
+    def test_generate_has_audio_output(self):
+        """RETURN_TYPES must include AUDIO so that PreviewAudio and SaveAudio
+        nodes can be connected to the Generate node in user workflows."""
+        assert nodes.AcestepCPPGenerate.RETURN_TYPES == ("AUDIO",)
