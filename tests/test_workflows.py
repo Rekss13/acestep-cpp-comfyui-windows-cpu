@@ -94,6 +94,15 @@ class TestWorkflowStructure:
             assert len(wv) >= 1 and isinstance(wv[0], str) and wv[0], \
                 "SaveAudio must have a non-empty filename_prefix widget value"
 
+    def test_save_audio_format_is_mp3(self, workflow_path):
+        """SaveAudio must use mp3 format — not the ComfyUI default of flac."""
+        wf = _load(workflow_path)
+        for node in _nodes_by_type(wf, "SaveAudio"):
+            wv = node.get("widgets_values", [])
+            got = repr(wv[1]) if len(wv) > 1 else "(missing)"
+            assert len(wv) >= 2 and wv[1] == "mp3", \
+                f"SaveAudio format (index 1) must be 'mp3', got {got}"
+
     # --- Model loader widget values ---------------------------------------
 
     def test_model_loader_has_four_widget_values(self, workflow_path):

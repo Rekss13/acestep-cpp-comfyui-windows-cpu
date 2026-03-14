@@ -1316,7 +1316,7 @@ class AcestepCPPGenerate:
                 lm_cmd += ["--no-fsm"]
 
             lm_result = subprocess.run(
-                lm_cmd, capture_output=True, text=True, cwd=tmpdir
+                lm_cmd, capture_output=True, encoding='utf-8', errors='replace', cwd=tmpdir
             )
             if lm_result.returncode != 0:
                 raise RuntimeError(
@@ -1373,7 +1373,7 @@ class AcestepCPPGenerate:
                 dit_cmd += ["--no-fa"]
 
             dit_result = subprocess.run(
-                dit_cmd, capture_output=True, text=True, cwd=tmpdir
+                dit_cmd, capture_output=True, encoding='utf-8', errors='replace', cwd=tmpdir
             )
             if dit_result.returncode != 0:
                 raise RuntimeError(
