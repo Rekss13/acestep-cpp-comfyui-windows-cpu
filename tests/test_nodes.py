@@ -674,3 +674,63 @@ class TestNoPythonAudioProcessing:
         """RETURN_TYPES must include AUDIO so that PreviewAudio and SaveAudio
         nodes can be connected to the Generate node in user workflows."""
         assert nodes.AcestepCPPGenerate.RETURN_TYPES == ("AUDIO",)
+
+
+# ===========================================================================
+# requirements.txt completeness
+# ===========================================================================
+
+class TestRequirementsTxt:
+    """Every third-party package imported by nodes.py must be listed in
+    requirements.txt so that ComfyUI Manager (and manual installs) know to
+    pull it in."""
+
+    # Packages that ComfyUI itself provides or that are part of the Python
+    # standard library — they must not appear in requirements.txt.
+    _COMFY_PROVIDED = {"folder_paths"}
+
+    def _req_packages(self):
+        req_path = os.path.join(os.path.dirname(nodes.__file__), "requirements.txt")
+        with open(req_path) as f:
+            return {
+                line.strip().split("==")[0].split(">=")[0].split("~=")[0].lower()
+                for line in f
+                if line.strip() and not line.startswith("#")
+            }
+
+    def _nodes_third_party_imports(self):
+        import ast
+        import sys
+
+        stdlib = set(sys.stdlib_module_names)
+        stdlib |= self._COMFY_PROVIDED
+
+        with open(nodes.__file__) as f:
+            src = f.read()
+
+        tree = ast.parse(src)
+        pkgs = set()
+        for node_ast in ast.walk(tree):
+            if isinstance(node_ast, ast.Import):
+                for alias in node_ast.names:
+                    pkg = alias.name.split(".")[0]
+                    if pkg not in stdlib:
+                        pkgs.add(pkg.lower())
+            elif isinstance(node_ast, ast.ImportFrom):
+                pkg = (node_ast.module or "").split(".")[0]
+                if pkg and pkg not in stdlib:
+                    pkgs.add(pkg.lower())
+        return pkgs
+
+    def test_requirements_txt_exists(self):
+        req_path = os.path.join(os.path.dirname(nodes.__file__), "requirements.txt")
+        assert os.path.isfile(req_path), "requirements.txt must exist in the node directory"
+
+    def test_all_third_party_imports_declared(self):
+        """Every third-party package imported (lazily or otherwise) in nodes.py
+        must appear in requirements.txt."""
+        req = self._req_packages()
+        missing = self._nodes_third_party_imports() - req
+        assert not missing, (
+            f"nodes.py imports packages not listed in requirements.txt: {sorted(missing)}"
+        )
