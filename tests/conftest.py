@@ -40,9 +40,21 @@ def _get_filename_list(name):
     return sorted(set(files))
 
 
+def _get_output_directory():
+    import tempfile
+    return tempfile.gettempdir()
+
+
+def _get_temp_directory():
+    import tempfile
+    return tempfile.gettempdir()
+
+
 _fp.get_folder_paths = _get_folder_paths
 _fp.add_model_folder_path = _add_model_folder_path
 _fp.get_filename_list = _get_filename_list
+_fp.get_output_directory = _get_output_directory
+_fp.get_temp_directory = _get_temp_directory
 
 sys.modules["folder_paths"] = _fp
 
