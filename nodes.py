@@ -1387,3 +1387,89 @@ class AcestepCPPGenerate:
             "result": (save_path,),
             "ui": {"audio": [{"filename": save_filename, "subfolder": subfolder, "type": "output"}]},
         }
+
+
+# ---------------------------------------------------------------------------
+# AcestepCPPAudioPlayer
+# ---------------------------------------------------------------------------
+
+class AcestepCPPAudioPlayer:
+    """Preview an audio file (MP3 or WAV) by filepath in the ComfyUI browser.
+
+    Connect the *filepath* STRING output of ``AcestepCPPGenerate`` (or any
+    node that emits an absolute audio path) to the *filepath* input here.
+    ComfyUI will render an in-browser audio player without re-encoding the
+    file.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "filepath": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "tooltip": (
+                            "Absolute path to an MP3 or WAV file to preview "
+                            "in the browser.  Connect to the 'filepath' output "
+                            "of Acestep.cpp Generate."
+                        ),
+                    },
+                ),
+            },
+        }
+
+    RETURN_TYPES = ()
+    FUNCTION = "play_audio"
+    CATEGORY = "AcestepCPP"
+    OUTPUT_NODE = True
+
+    def play_audio(self, filepath: str):
+        import uuid
+
+        filepath = filepath.strip()
+        if not filepath:
+            return {"ui": {"audio": []}}
+
+        if not os.path.isfile(filepath):
+            raise ValueError(f"Audio file not found: {filepath!r}")
+
+        ext = os.path.splitext(filepath)[1].lower()
+        if ext not in (".mp3", ".wav"):
+            raise ValueError(
+                f"Unsupported audio format {ext!r}. "
+                "Only .mp3 and .wav files are supported."
+            )
+
+        # If the file already lives inside ComfyUI's output directory, serve
+        # it directly from there without making a copy.
+        try:
+            out_dir = os.path.realpath(folder_paths.get_output_directory())
+            real_file = os.path.realpath(filepath)
+            if real_file.startswith(out_dir + os.sep) or real_file == out_dir:
+                rel = os.path.relpath(real_file, out_dir)
+                subfolder = os.path.dirname(rel)
+                filename = os.path.basename(rel)
+                return {
+                    "ui": {
+                        "audio": [
+                            {"filename": filename, "subfolder": subfolder, "type": "output"}
+                        ]
+                    }
+                }
+        except OSError:
+            pass
+
+        # File is outside the output directory — copy it to the temp directory
+        # so ComfyUI's static file server can stream it to the browser.
+        filename = f"acestep_preview_{uuid.uuid4().hex}{ext}"
+        temp_dir = folder_paths.get_temp_directory()
+        dest = os.path.join(temp_dir, filename)
+        shutil.copy2(filepath, dest)
+
+        return {
+            "ui": {
+                "audio": [{"filename": filename, "subfolder": "", "type": "temp"}]
+            }
+        }

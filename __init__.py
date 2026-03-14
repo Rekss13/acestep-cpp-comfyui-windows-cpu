@@ -32,7 +32,7 @@ except Exception:
     pass
 
 try:
-    from .nodes import AcestepCPPModelLoader, AcestepCPPLoraLoader, AcestepCPPModelDownloader, AcestepCPPBuilder, AcestepCPPGenerate, AcestepCPPOptions
+    from .nodes import AcestepCPPModelLoader, AcestepCPPLoraLoader, AcestepCPPModelDownloader, AcestepCPPBuilder, AcestepCPPGenerate, AcestepCPPOptions, AcestepCPPAudioPlayer
 
     NODE_CLASS_MAPPINGS = {
         "AcestepCPPModelLoader": AcestepCPPModelLoader,
@@ -41,6 +41,7 @@ try:
         "AcestepCPPBuilder": AcestepCPPBuilder,
         "AcestepCPPGenerate": AcestepCPPGenerate,
         "AcestepCPPOptions": AcestepCPPOptions,
+        "AcestepCPPAudioPlayer": AcestepCPPAudioPlayer,
     }
 
     NODE_DISPLAY_NAME_MAPPINGS = {
@@ -50,6 +51,7 @@ try:
         "AcestepCPPBuilder": "Acestep.cpp Builder",
         "AcestepCPPGenerate": "Acestep.cpp Generate",
         "AcestepCPPOptions": "Acestep.cpp Options",
+        "AcestepCPPAudioPlayer": "Acestep.cpp Audio Player",
     }
 
 except ImportError:

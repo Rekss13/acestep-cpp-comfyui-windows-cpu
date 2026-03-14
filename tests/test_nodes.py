@@ -733,3 +733,127 @@ class TestRequirementsTxt:
         assert not missing, (
             f"nodes.py imports packages not listed in requirements.txt: {sorted(missing)}"
         )
+
+
+# ===========================================================================
+# AcestepCPPAudioPlayer
+# ===========================================================================
+
+class TestAcestepCPPAudioPlayer:
+    @pytest.fixture
+    def player(self):
+        return nodes.AcestepCPPAudioPlayer()
+
+    # --- INPUT_TYPES structure ---
+
+    def test_has_required_filepath(self):
+        req = nodes.AcestepCPPAudioPlayer.INPUT_TYPES()["required"]
+        assert "filepath" in req
+        assert req["filepath"][0] == "STRING"
+
+    def test_return_types_empty(self):
+        assert nodes.AcestepCPPAudioPlayer.RETURN_TYPES == ()
+
+    def test_output_node_true(self):
+        assert nodes.AcestepCPPAudioPlayer.OUTPUT_NODE is True
+
+    def test_category(self):
+        assert nodes.AcestepCPPAudioPlayer.CATEGORY == "AcestepCPP"
+
+    # --- Empty / blank filepath ---
+
+    def test_empty_filepath_returns_empty_audio(self, player):
+        result = player.play_audio("")
+        assert result == {"ui": {"audio": []}}
+
+    def test_whitespace_filepath_returns_empty_audio(self, player):
+        result = player.play_audio("   ")
+        assert result == {"ui": {"audio": []}}
+
+    # --- Missing file ---
+
+    def test_missing_file_raises_value_error(self, player, tmp_path):
+        with pytest.raises(ValueError, match="not found"):
+            player.play_audio(str(tmp_path / "nonexistent.mp3"))
+
+    # --- Unsupported extension ---
+
+    def test_unsupported_extension_raises_value_error(self, player, tmp_path):
+        f = tmp_path / "audio.flac"
+        f.write_bytes(b"fake")
+        with pytest.raises(ValueError, match="Unsupported audio format"):
+            player.play_audio(str(f))
+
+    # --- File already in ComfyUI output directory ---
+
+    def test_file_in_output_dir_served_directly(self, player, tmp_path, monkeypatch):
+        out_dir = tmp_path / "output"
+        out_dir.mkdir()
+        audio_file = out_dir / "song.mp3"
+        audio_file.write_bytes(b"fake mp3")
+
+        import folder_paths as fp
+        monkeypatch.setattr(fp, "get_output_directory", lambda: str(out_dir))
+
+        result = player.play_audio(str(audio_file))
+        ui_audio = result["ui"]["audio"]
+        assert len(ui_audio) == 1
+        assert ui_audio[0]["type"] == "output"
+        assert ui_audio[0]["filename"] == "song.mp3"
+
+    def test_file_in_output_subdir_served_directly(self, player, tmp_path, monkeypatch):
+        out_dir = tmp_path / "output"
+        sub = out_dir / "acestep"
+        sub.mkdir(parents=True)
+        audio_file = sub / "track.wav"
+        audio_file.write_bytes(b"fake wav")
+
+        import folder_paths as fp
+        monkeypatch.setattr(fp, "get_output_directory", lambda: str(out_dir))
+
+        result = player.play_audio(str(audio_file))
+        ui_audio = result["ui"]["audio"]
+        assert ui_audio[0]["type"] == "output"
+        assert ui_audio[0]["filename"] == "track.wav"
+        assert ui_audio[0]["subfolder"] == "acestep"
+
+    # --- File outside output directory — copy to temp ---
+
+    def test_external_mp3_copied_to_temp(self, player, tmp_path, monkeypatch):
+        out_dir = tmp_path / "output"
+        out_dir.mkdir()
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        audio_file = tmp_path / "external.mp3"
+        audio_file.write_bytes(b"fake mp3")
+
+        import folder_paths as fp
+        monkeypatch.setattr(fp, "get_output_directory", lambda: str(out_dir))
+        monkeypatch.setattr(fp, "get_temp_directory", lambda: str(temp_dir))
+
+        result = player.play_audio(str(audio_file))
+        ui_audio = result["ui"]["audio"]
+        assert len(ui_audio) == 1
+        assert ui_audio[0]["type"] == "temp"
+        assert ui_audio[0]["filename"].endswith(".mp3")
+        assert ui_audio[0]["subfolder"] == ""
+        # The file should have been copied into temp_dir
+        copied = temp_dir / ui_audio[0]["filename"]
+        assert copied.is_file()
+
+    def test_external_wav_copied_to_temp(self, player, tmp_path, monkeypatch):
+        out_dir = tmp_path / "output"
+        out_dir.mkdir()
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        audio_file = tmp_path / "external.wav"
+        audio_file.write_bytes(b"fake wav")
+
+        import folder_paths as fp
+        monkeypatch.setattr(fp, "get_output_directory", lambda: str(out_dir))
+        monkeypatch.setattr(fp, "get_temp_directory", lambda: str(temp_dir))
+
+        result = player.play_audio(str(audio_file))
+        ui_audio = result["ui"]["audio"]
+        assert ui_audio[0]["filename"].endswith(".wav")
+        assert ui_audio[0]["type"] == "temp"
