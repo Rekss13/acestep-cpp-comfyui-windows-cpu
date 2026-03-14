@@ -77,24 +77,24 @@ class TestWorkflowStructure:
         assert _nodes_by_type(wf, "AcestepCPPGenerate"), \
             "Workflow must include AcestepCPPGenerate"
 
-    # --- Output: generate node is itself the output node ---------------------
+    # --- Output: generate node exposes AUDIO for downstream nodes -----------
 
-    def test_has_no_audio_output_node(self, workflow_path):
-        """AcestepCPPGenerate is itself an OUTPUT_NODE; no SaveAudio or PreviewAudio needed."""
+    def test_has_preview_audio_node(self, workflow_path):
+        """Each workflow must include a PreviewAudio node connected to AcestepCPPGenerate."""
         wf = _load(workflow_path)
         node_types = [n["type"] for n in wf["nodes"]]
-        assert "SaveAudio" not in node_types, \
-            "SaveAudio is no longer needed; AcestepCPPGenerate copies the file and shows its own player"
-        assert "PreviewAudio" not in node_types, \
-            "PreviewAudio is no longer needed; AcestepCPPGenerate shows its own audio player"
+        assert "PreviewAudio" in node_types, \
+            "Workflow must include a PreviewAudio node to display generated audio"
 
-    def test_generate_has_no_output_links(self, workflow_path):
-        """AcestepCPPGenerate is a terminal output node; its output slot must have no outgoing links."""
+    def test_generate_has_audio_output_link(self, workflow_path):
+        """AcestepCPPGenerate must expose an AUDIO output connected to PreviewAudio."""
         wf = _load(workflow_path)
         for node in _nodes_by_type(wf, "AcestepCPPGenerate"):
-            for output in node.get("outputs", []):
-                assert not output.get("links"), \
-                    f"AcestepCPPGenerate output '{output.get('name')}' should have no outgoing links"
+            audio_outputs = [o for o in node.get("outputs", []) if o.get("type") == "AUDIO"]
+            assert audio_outputs, \
+                "AcestepCPPGenerate must have an AUDIO output slot"
+            assert audio_outputs[0].get("links"), \
+                "AcestepCPPGenerate AUDIO output must be connected to a downstream node"
 
     # --- Model loader widget values ---------------------------------------
 
