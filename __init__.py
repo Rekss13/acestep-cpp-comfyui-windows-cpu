@@ -32,7 +32,7 @@ except Exception:
     pass
 
 try:
-    from .nodes import AcestepCPPModelLoader, AcestepCPPLoraLoader, AcestepCPPModelDownloader, AcestepCPPBuilder, AcestepCPPGenerate
+    from .nodes import AcestepCPPModelLoader, AcestepCPPLoraLoader, AcestepCPPModelDownloader, AcestepCPPBuilder, AcestepCPPGenerate, AcestepCPPOptions
 
     NODE_CLASS_MAPPINGS = {
         "AcestepCPPModelLoader": AcestepCPPModelLoader,
@@ -40,6 +40,7 @@ try:
         "AcestepCPPModelDownloader": AcestepCPPModelDownloader,
         "AcestepCPPBuilder": AcestepCPPBuilder,
         "AcestepCPPGenerate": AcestepCPPGenerate,
+        "AcestepCPPOptions": AcestepCPPOptions,
     }
 
     NODE_DISPLAY_NAME_MAPPINGS = {
@@ -48,6 +49,7 @@ try:
         "AcestepCPPModelDownloader": "Acestep.cpp Model Downloader",
         "AcestepCPPBuilder": "Acestep.cpp Builder",
         "AcestepCPPGenerate": "Acestep.cpp Generate",
+        "AcestepCPPOptions": "Acestep.cpp Options",
     }
 
 except ImportError:

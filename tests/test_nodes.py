@@ -226,16 +226,104 @@ class TestAcestepCPPGenerateInputTypes:
 
     def test_optional_connections_present(self):
         opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
-        assert "reference_audio_input" in opt
+        # reference_audio_input removed; src_audio_input, lora, and options remain
         assert "src_audio_input" in opt
         assert "lora" in opt
+        assert "options" in opt
+
+    def test_optional_has_new_params(self):
+        """New params added in the redesign must all be present."""
+        opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
+        assert "lm_top_k" in opt
+        assert "use_cot_caption" in opt
+        assert "repainting_start" in opt
+        assert "repainting_end" in opt
+        assert "lego" in opt
+
+    def test_guidance_scale_default_is_zero(self):
+        """guidance_scale default must be 0.0 (auto-resolved by the binary)."""
+        opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
+        assert opt["guidance_scale"][1]["default"] == 0.0
+
+    def test_duration_is_float(self):
+        """duration must be a FLOAT with 0.0 meaning 'unset'."""
+        opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
+        assert opt["duration"][0] == "FLOAT"
+        assert opt["duration"][1]["default"] == 0.0
+
+    def test_task_type_removed(self):
+        """task_type is not a valid acestep.cpp JSON field and must be absent."""
+        opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
+        assert "task_type" not in opt
+
+    def test_reference_audio_removed(self):
+        """reference_audio / reference_audio_input consolidated into src_audio."""
+        opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
+        assert "reference_audio" not in opt
+        assert "reference_audio_input" not in opt
 
     def test_return_types(self):
         assert nodes.AcestepCPPGenerate.RETURN_TYPES == ("AUDIO",)
 
-    def test_task_types_list(self):
-        assert "text2music" in nodes.AcestepCPPGenerate.TASK_TYPES
-        assert "cover" in nodes.AcestepCPPGenerate.TASK_TYPES
+    def test_lego_tracks_list(self):
+        """LEGO_TRACKS must include the track names documented in the README."""
+        assert "guitar" in nodes.AcestepCPPGenerate.LEGO_TRACKS
+        assert "drums" in nodes.AcestepCPPGenerate.LEGO_TRACKS
+        assert "" in nodes.AcestepCPPGenerate.LEGO_TRACKS
+
+
+# ===========================================================================
+# AcestepCPPOptions
+# ===========================================================================
+
+class TestAcestepCPPOptions:
+    @pytest.fixture
+    def node(self):
+        return nodes.AcestepCPPOptions()
+
+    def test_return_types(self):
+        assert nodes.AcestepCPPOptions.RETURN_TYPES == ("ACESTEP_OPTIONS",)
+
+    def test_return_names(self):
+        assert nodes.AcestepCPPOptions.RETURN_NAMES == ("options",)
+
+    def test_category(self):
+        assert nodes.AcestepCPPOptions.CATEGORY == "AcestepCPP"
+
+    def test_has_output_format(self):
+        opt = nodes.AcestepCPPOptions.INPUT_TYPES()["optional"]
+        assert "output_format" in opt
+
+    def test_has_vae_tiling_params(self):
+        opt = nodes.AcestepCPPOptions.INPUT_TYPES()["optional"]
+        assert "vae_chunk" in opt
+        assert "vae_overlap" in opt
+
+    def test_has_batch_params(self):
+        opt = nodes.AcestepCPPOptions.INPUT_TYPES()["optional"]
+        assert "lm_batch" in opt
+        assert "dit_batch" in opt
+
+    def test_has_debug_flags(self):
+        opt = nodes.AcestepCPPOptions.INPUT_TYPES()["optional"]
+        assert "no_flash_attn" in opt
+        assert "lm_max_seq" in opt
+        assert "lm_no_fsm" in opt
+
+    def test_output_formats_include_mp3_and_wav(self):
+        assert "mp3" in nodes.AcestepCPPOptions.OUTPUT_FORMATS
+        assert "wav" in nodes.AcestepCPPOptions.OUTPUT_FORMATS
+
+    def test_get_options_returns_dict(self, node):
+        result = node.get_options(output_format="wav", mp3_bitrate=192)
+        assert isinstance(result, tuple)
+        assert isinstance(result[0], dict)
+        assert result[0]["output_format"] == "wav"
+        assert result[0]["mp3_bitrate"] == 192
+
+    def test_get_options_empty_returns_empty_dict(self, node):
+        result = node.get_options()
+        assert result == ({},)
 
 
 # ===========================================================================

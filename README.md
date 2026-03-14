@@ -1,17 +1,19 @@
 # acestep-cpp-comfyui
 
-ComfyUI custom nodes that wrap [acestep.cpp](https://github.com/audiohacking/acestep.cpp) — a portable C++17 implementation of ACE-Step 1.5 music generation using GGML. Text + lyrics in, stereo 48 kHz WAV out. Runs on CPU, CUDA, Metal, and Vulkan.
+ComfyUI custom nodes that wrap [acestep.cpp](https://github.com/audiohacking/acestep.cpp) — a portable C++17 implementation of ACE-Step 1.5 music generation using GGML. Text + lyrics in, stereo 48 kHz audio out. Runs on CPU, CUDA, Metal, and Vulkan.
 
 ## Features
 
 - **Build** the `ace-qwen3` and `dit-vae` binaries from source via the **Acestep.cpp Builder** node (no terminal required)
 - **Download** the required GGUF models directly from HuggingFace without leaving ComfyUI
 - Load the four GGUF model files required by acestep.cpp (LM, text encoder, DiT, VAE)
-- Load LoRA adapters from a dedicated **Acestep.cpp LoRA Loader** node (scans `loras/` subdirectories)
+- Load LoRA adapters from a dedicated **Acestep.cpp LoRA Loader** node
+- Configure advanced technical options via the **Acestep.cpp Options** node (output format, VAE tiling, batch size, debug flags)
 - Generate music from a caption and optional lyrics/metadata
 - Full control over generation parameters (turbo and SFT presets)
-- Cover mode, reference-audio timbre transfer, and LoRA adapter support
-- Connect **AUDIO tensors** from any `LoadAudio` node directly to the generator for reference/source audio
+- Cover mode, repaint mode, lego mode, and LoRA adapter support
+- All generation parameters aligned with the [acestep.cpp request JSON reference](https://github.com/ServeurpersoCom/acestep.cpp#request-json-reference)
+- Connect **AUDIO tensors** from any `LoadAudio` node directly to the generator for source audio
 - Returns a ComfyUI **AUDIO** tensor, compatible with any audio preview or save node
 - Ready-to-use **example workflows** in `workflow-examples/`
 
@@ -130,7 +132,7 @@ Ready-to-use workflow JSON files are in the `workflow-examples/` directory. Drag
 |------|-------------|
 | `acestep-cpp-text2music.json` | Basic text-to-music generation |
 | `acestep-cpp-lora.json` | Text-to-music with a LoRA adapter |
-| `acestep-cpp-reference-audio.json` | Timbre transfer using a reference audio file |
+| `acestep-cpp-reference-audio.json` | Cover mode using a source audio file |
 | `acestep-cpp-cover.json` | Cover/remix mode using a source audio file |
 
 > **Prerequisites**: download the GGUF models (use the **Model Downloader** node) and build the binaries (use the **Builder** node) before running a generation workflow.
@@ -218,7 +220,7 @@ Selects the four GGUF model files and validates that they exist on disk.
 ### Acestep.cpp LoRA Loader
 
 Specify a LoRA adapter file and scale, ready to connect to the **Generate** node.
-Enter the full path to any `.gguf` or `.safetensors` LoRA file anywhere on your filesystem.
+Enter the full path to any `.safetensors` file or PEFT directory anywhere on your filesystem.
 
 **Inputs (required)**
 
@@ -235,45 +237,94 @@ Enter the full path to any `.gguf` or `.safetensors` LoRA file anywhere on your 
 
 ---
 
+### Acestep.cpp Options
+
+Configures advanced technical parameters for generation. Connect to the **Generate** node's `options` input. All fields are optional — unset fields fall back to acestep.cpp defaults.
+
+**Inputs (all optional)**
+
+| Name | Default | Description |
+|------|---------|-------------|
+| `output_format` | `mp3` | Output audio format: `mp3` (smaller) or `wav` (lossless) |
+| `mp3_bitrate` | `128` | MP3 bitrate in kbps (only used when `output_format` is `mp3`) |
+| `vae_chunk` | `256` | VAE latent frames per tile — reduce to lower VRAM usage |
+| `vae_overlap` | `64` | VAE overlap frames per side |
+| `lm_batch` | `1` | Number of LM sequences to generate in parallel (each produces a different song) |
+| `dit_batch` | `1` | Number of DiT variations per LM output (max 9, differ only in noise) |
+| `no_flash_attn` | `false` | Disable flash attention in both `ace-qwen3` and `dit-vae` |
+| `lm_max_seq` | `8192` | KV cache size for `ace-qwen3` in tokens |
+| `lm_no_fsm` | `false` | Disable FSM constrained decoding in `ace-qwen3` |
+
+**Outputs**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `options` | `ACESTEP_OPTIONS` | Options bundle passed to the generator |
+
+---
+
 ### Acestep.cpp Generate
 
-Runs `ace-qwen3` (LM) then `dit-vae` (DiT + VAE) and returns the generated audio.
+Runs `ace-qwen3` (LM) then `dit-vae` (DiT + VAE) and returns the generated audio. Optionally connect an **Acestep.cpp Options** node to control output format, batching, and VAE tiling.
 
 **Inputs (required)**
 
 | Name | Description |
 |------|-------------|
 | `models` | Output of the Model Loader |
-| `caption` | Music style/description (required by the LM) |
+| `caption` | Music style/description — fed to both the LM and DiT text encoder |
 
-**Inputs (optional)**
+**Inputs (optional — lyrics and metadata)**
 
 | Name | Default | Description |
 |------|---------|-------------|
-| `lyrics` | *(empty)* | Song lyrics; leave empty for the LM to generate |
-| `task_type` | `text2music` | Generation mode: `text2music`, `cover`, or `repaint` |
-| `instrumental` | `false` | Generate an instrumental track (no vocals) |
-| `vocal_language` | `unknown` | Language of the vocals (`en`, `fr`, `zh`, …) |
-| `duration` | `-1` | Duration in seconds; `-1` lets the LM decide |
+| `lyrics` | *(empty)* | Song lyrics. Empty = LM generates. `[Instrumental]` = no vocals. |
+| `instrumental` | `false` | Convenience toggle: sets `lyrics` to `[Instrumental]` when enabled and `lyrics` is empty |
+| `vocal_language` | *(empty)* | BCP-47 language code (`en`, `fr`, `ja`, …). Empty = LM detects. `unknown` = explicit no-language signal. |
+| `duration` | `0.0` | Duration in seconds; `0.0` lets the LM decide (clamped to [1, 600] s) |
 | `bpm` | `0` | Beats per minute; `0` lets the LM decide |
 | `keyscale` | *(empty)* | Key and scale, e.g. `C major`; leave empty for the LM to decide |
-| `timesignature` | *(empty)* | Time signature, e.g. `4/4`; leave empty for the LM to decide |
-| `inference_steps` | `8` | DiT diffusion steps (8 = turbo preset, 50 = SFT preset) |
-| `guidance_scale` | `7.0` | CFG scale (ignored by turbo models) |
-| `shift` | `3.0` | Flow-matching shift (3.0 = turbo, 6.0 = SFT) |
+| `timesignature` | *(empty)* | Time signature numerator, e.g. `4` for 4/4; leave empty for the LM to decide |
+
+**Inputs (optional — DiT flow-matching)**
+
+| Name | Default | Description |
+|------|---------|-------------|
+| `inference_steps` | `8` | DiT denoising steps (8 = turbo preset, 50 = SFT preset) |
+| `guidance_scale` | `0.0` | CFG scale; `0.0` auto-resolves to `1.0` at runtime (disabled). Values > 1.0 on turbo models are overridden to 1.0. |
+| `shift` | `3.0` | Flow-matching schedule shift (3.0 = turbo, 1.0 = SFT) |
 | `seed` | `-1` | Random seed; `-1` picks one at random |
-| `lm_temperature` | `0.85` | LM sampling temperature |
-| `lm_cfg_scale` | `2.0` | LM classifier-free guidance scale |
-| `lm_top_p` | `0.9` | LM nucleus sampling probability |
-| `lm_negative_prompt` | *(empty)* | Negative prompt for the LM |
-| `reference_audio` | *(empty)* | Path to a WAV/MP3 for timbre transfer (use `reference_audio_input` instead when possible) |
-| `src_audio` | *(empty)* | Path to a WAV/MP3 source for cover mode (use `src_audio_input` instead when possible) |
-| `audio_cover_strength` | `1.0` | Cover influence strength (0 = silence, 1 = full) |
-| `lora_path` | *(empty)* | Path to a DiT LoRA adapter file (use the LoRA Loader node instead when possible) |
+
+**Inputs (optional — LM sampling)**
+
+| Name | Default | Description |
+|------|---------|-------------|
+| `lm_temperature` | `0.85` | LM sampling temperature — lower = more deterministic |
+| `lm_cfg_scale` | `2.0` | LM classifier-free guidance scale — `1.0` disables CFG |
+| `lm_top_p` | `0.9` | LM nucleus (top-p) sampling cutoff — `1.0` disables |
+| `lm_top_k` | `0` | LM top-k sampling — `0` disables |
+| `lm_negative_prompt` | *(empty)* | Negative caption for LM CFG in phase 2 |
+| `use_cot_caption` | `true` | When enabled, the LM enriches the caption via CoT and the enriched version is fed to the DiT |
+
+**Inputs (optional — source audio: cover / repaint / lego)**
+
+| Name | Default | Description |
+|------|---------|-------------|
+| `src_audio` | *(empty)* | Path to a WAV or MP3 source file (prefer `src_audio_input` instead) |
+| `audio_cover_strength` | `0.5` | Fraction of DiT steps using the source audio as context: `0.0` = pure text-to-music, `1.0` = near-passthrough |
+| `repainting_start` | `-1.0` | Repaint region start in seconds (requires `src_audio`; `-1` = inactive) |
+| `repainting_end` | `-1.0` | Repaint region end in seconds (requires `src_audio`; `-1` = source duration) |
+| `lego` | *(empty)* | Lego mode track name (e.g. `guitar`, `drums`; requires `src_audio` and the base model) |
+
+**Inputs (optional — LoRA and node connections)**
+
+| Name | Default | Description |
+|------|---------|-------------|
+| `lora_path` | *(empty)* | Path to a DiT LoRA adapter (`.safetensors` or PEFT directory) |
 | `lora_scale` | `1.0` | LoRA adapter scale |
-| `reference_audio_input` | *(not connected)* | **AUDIO** tensor for timbre transfer — connect from a `Load Audio` node; overrides `reference_audio` |
-| `src_audio_input` | *(not connected)* | **AUDIO** tensor for cover/repaint — connect from a `Load Audio` node; overrides `src_audio` |
+| `src_audio_input` | *(not connected)* | **AUDIO** tensor for cover/repaint/lego — connect from a `Load Audio` node; overrides `src_audio` |
 | `lora` | *(not connected)* | **ACESTEP_LORA** from the LoRA Loader node; overrides `lora_path` / `lora_scale` |
+| `options` | *(not connected)* | **ACESTEP_OPTIONS** from the Options node; controls output format, batching, and VAE tiling |
 
 **Outputs**
 
@@ -281,21 +332,35 @@ Runs `ace-qwen3` (LM) then `dit-vae` (DiT + VAE) and returns the generated audio
 |------|------|-------------|
 | `audio` | `AUDIO` | Generated stereo 48 kHz audio |
 
+## Generation Modes
+
+The mode is determined automatically from the inputs, following the acestep.cpp request JSON reference:
+
+| Mode | How to activate |
+|------|-----------------|
+| **Text-to-music** | `lyrics=""` (LM generates lyrics) or caption only |
+| **Instrumental** | `lyrics="[Instrumental]"` or enable the `instrumental` toggle |
+| **Cover** | Connect `src_audio_input` or set `src_audio` |
+| **Repaint** | Connect `src_audio_input` + set `repainting_start` and/or `repainting_end` |
+| **Lego** | Connect `src_audio_input` + set `lego` track name (base model required) |
+
 ## Quick Start Presets
 
 **Turbo (fast, 8 steps)**
 ```
 inference_steps = 8
+guidance_scale  = 0.0   (auto → 1.0)
 shift           = 3.0
 ```
 
 **SFT (higher quality, 50 steps)**
 ```
 inference_steps = 50
-guidance_scale  = 4.0
-shift           = 6.0
+guidance_scale  = 1.0
+shift           = 1.0
 ```
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+

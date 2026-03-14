@@ -113,11 +113,6 @@
                     "link": 1
                 },
                 {
-                    "name": "reference_audio_input",
-                    "type": "AUDIO",
-                    "link": null
-                },
-                {
                     "name": "src_audio_input",
                     "type": "AUDIO",
                     "link": null
@@ -126,6 +121,11 @@
                     "name": "lora",
                     "type": "ACESTEP_LORA",
                     "link": 3
+                },
+                {
+                    "name": "options",
+                    "type": "ACESTEP_OPTIONS",
+                    "link": null
                 }
             ],
             "outputs": [
@@ -144,24 +144,27 @@
             "widgets_values": [
                 "Upbeat pop rock with driving guitars and catchy hooks",
                 "",
-                "text2music",
                 false,
-                "unknown",
-                -1,
+                "",
+                0.0,
                 0,
                 "",
                 "",
                 8,
-                7.0,
+                0.0,
                 3.0,
                 -1,
                 0.85,
                 2.0,
                 0.9,
+                0,
+                "",
+                true,
+                0.5,
+                -1.0,
+                -1.0,
                 "",
                 "",
-                "",
-                1.0,
                 "",
                 1.0
             ]
@@ -218,7 +221,7 @@
             4,
             0,
             2,
-            3,
+            2,
             "ACESTEP_LORA"
         ]
     ],
