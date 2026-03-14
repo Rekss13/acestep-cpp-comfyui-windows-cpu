@@ -781,10 +781,12 @@ class AcestepCPPGenerate:
     """
     Generate music with acestep.cpp.
 
-    Runs ``ace-qwen3`` (LM) then ``dit-vae`` (DiT + VAE) and returns the
-    result as a ComfyUI AUDIO tensor.  Connect an **AcestepCPPOptions** node
-    to the ``options`` input to control output format, batching, VAE tiling,
-    and advanced debug flags.
+    Runs ``ace-qwen3`` (LM) then ``dit-vae`` (DiT + VAE).  The native MP3 or
+    WAV produced by the binary is copied as-is to ComfyUI's output directory
+    and an inline audio player is displayed on the node — no Python audio
+    decoding or re-encoding is performed.  Connect an **AcestepCPPOptions**
+    node to the ``options`` input to control output format, batching, VAE
+    tiling, and advanced debug flags.
     """
 
     VOCAL_LANGUAGES = [
@@ -1369,6 +1371,8 @@ class AcestepCPPGenerate:
             # Copy the native MP3/WAV to ComfyUI's output directory unchanged —
             # no decoding, no re-encoding, no external tools.
             out_dir = folder_paths.get_output_directory()
+            # get_save_image_path is ComfyUI's generic counter-based filename
+            # helper — it works for any file type despite the "image" name.
             full_out_folder, base_name, counter, subfolder, _ = (
                 folder_paths.get_save_image_path("acestep", out_dir)
             )

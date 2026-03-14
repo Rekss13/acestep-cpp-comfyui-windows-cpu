@@ -336,6 +336,19 @@ class TestAcestepCPPGenerateInputTypes:
     def test_is_output_node(self):
         assert nodes.AcestepCPPGenerate.OUTPUT_NODE is True
 
+    def test_no_audio_tensor_input(self):
+        """src_audio_input AUDIO connection was removed — binary reads WAV/MP3
+        natively so no Python tensor conversion is needed on the input side."""
+        opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
+        assert "src_audio_input" not in opt
+
+    def test_no_audio_tensor_output(self):
+        """Generate is a terminal OUTPUT_NODE that renders an inline player.
+        It must NOT include an AUDIO tensor in its return types — the binary
+        writes MP3/WAV natively so no Python decoding is needed."""
+        assert nodes.AcestepCPPGenerate.RETURN_TYPES == ()
+        assert nodes.AcestepCPPGenerate.OUTPUT_NODE is True
+
     def test_lego_tracks_list(self):
         """LEGO_TRACKS must include the track names documented in the README."""
         assert "guitar" in nodes.AcestepCPPGenerate.LEGO_TRACKS
@@ -613,3 +626,46 @@ class TestGetBinaryPath:
             )
             result = nodes.get_binary_path("ace-qwen3")
         assert result is None
+
+
+# ===========================================================================
+# No Python audio-decoding imports
+# ===========================================================================
+
+class TestNoPythonAudioProcessing:
+    """These tests enforce that the node never imports Python audio-decoding
+    libraries.  The binary handles both WAV and MP3 natively on the input side
+    (src_audio path) and writes the output file natively; ComfyUI renders an
+    inline player directly from the saved file.  No torchaudio, torch, wave,
+    numpy, soundfile, or ffmpeg-python are needed."""
+
+    _AUDIO_LIBS = ["torchaudio", "torch", "wave", "numpy", "soundfile", "pydub"]
+
+    def test_no_audio_decode_imports_at_module_level(self):
+        """None of the Python audio-decoding libraries must appear in the
+        top-level imports of nodes.py (they would be pulled in unconditionally
+        at ComfyUI startup time, bloating the environment requirement)."""
+        with open(nodes.__file__) as f:
+            nodes_src = f.read()
+        import_lines = [
+            ln.strip()
+            for ln in nodes_src.splitlines()
+            if ln.strip().startswith("import ") or ln.strip().startswith("from ")
+        ]
+        for lib in self._AUDIO_LIBS:
+            for ln in import_lines:
+                assert lib not in ln, (
+                    f"nodes.py imports audio-decoding library '{lib}' at module level: {ln!r}"
+                )
+
+    def test_src_audio_input_absent(self):
+        """src_audio_input AUDIO connection must not exist — binary reads
+        WAV/MP3 natively so no LoadAudio → tensor → torchaudio.save pipeline
+        is needed."""
+        opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
+        assert "src_audio_input" not in opt
+
+    def test_generate_return_types_empty(self):
+        """RETURN_TYPES must be () — the binary writes the output audio file
+        directly; no Python decoding is needed to pipe it downstream."""
+        assert nodes.AcestepCPPGenerate.RETURN_TYPES == ()
