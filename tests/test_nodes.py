@@ -333,7 +333,10 @@ class TestAcestepCPPGenerateInputTypes:
         assert "reference_audio_input" not in opt
 
     def test_return_types(self):
-        assert nodes.AcestepCPPGenerate.RETURN_TYPES == ("AUDIO",)
+        assert nodes.AcestepCPPGenerate.RETURN_TYPES == ()
+
+    def test_is_output_node(self):
+        assert nodes.AcestepCPPGenerate.OUTPUT_NODE is True
 
     def test_lego_tracks_list(self):
         """LEGO_TRACKS must include the track names documented in the README."""

@@ -77,31 +77,24 @@ class TestWorkflowStructure:
         assert _nodes_by_type(wf, "AcestepCPPGenerate"), \
             "Workflow must include AcestepCPPGenerate"
 
-    # --- Output node: save-then-play --------------------------------------
+    # --- Output: generate node is itself the output node ---------------------
 
-    def test_uses_save_audio_not_preview_audio(self, workflow_path):
+    def test_has_no_audio_output_node(self, workflow_path):
+        """AcestepCPPGenerate is itself an OUTPUT_NODE; no SaveAudio or PreviewAudio needed."""
         wf = _load(workflow_path)
         node_types = [n["type"] for n in wf["nodes"]]
+        assert "SaveAudio" not in node_types, \
+            "SaveAudio is no longer needed; AcestepCPPGenerate copies the file and shows its own player"
         assert "PreviewAudio" not in node_types, \
-            "PreviewAudio (play-only) should be replaced by SaveAudio (save-then-play)"
-        assert "SaveAudio" in node_types, \
-            "SaveAudio must be present so generated audio is persisted to disk"
+            "PreviewAudio is no longer needed; AcestepCPPGenerate shows its own audio player"
 
-    def test_save_audio_has_filename_prefix(self, workflow_path):
+    def test_generate_has_no_output_links(self, workflow_path):
+        """AcestepCPPGenerate is a terminal output node; its output slot must have no outgoing links."""
         wf = _load(workflow_path)
-        for node in _nodes_by_type(wf, "SaveAudio"):
-            wv = node.get("widgets_values", [])
-            assert len(wv) >= 1 and isinstance(wv[0], str) and wv[0], \
-                "SaveAudio must have a non-empty filename_prefix widget value"
-
-    def test_save_audio_format_is_mp3(self, workflow_path):
-        """SaveAudio must use mp3 format — not the ComfyUI default of flac."""
-        wf = _load(workflow_path)
-        for node in _nodes_by_type(wf, "SaveAudio"):
-            wv = node.get("widgets_values", [])
-            got = repr(wv[1]) if len(wv) > 1 else "(missing)"
-            assert len(wv) >= 2 and wv[1] == "mp3", \
-                f"SaveAudio format (index 1) must be 'mp3', got {got}"
+        for node in _nodes_by_type(wf, "AcestepCPPGenerate"):
+            for output in node.get("outputs", []):
+                assert not output.get("links"), \
+                    f"AcestepCPPGenerate output '{output.get('name')}' should have no outgoing links"
 
     # --- Model loader widget values ---------------------------------------
 
@@ -310,12 +303,3 @@ class TestWorkflowStructure:
         for node in _nodes_by_type(wf, "AcestepCPPModelLoader"):
             assert node["id"] in link_src_nodes, \
                 "AcestepCPPModelLoader output is not connected to any node"
-
-    def test_generate_output_connected_to_save_audio(self, workflow_path):
-        """AcestepCPPGenerate audio output must feed into SaveAudio."""
-        wf = _load(workflow_path)
-        node_ids = {n["id"]: n for n in wf["nodes"]}
-        save_audio_ids = {n["id"] for n in _nodes_by_type(wf, "SaveAudio")}
-        # Walk links: find any link whose destination is a SaveAudio node
-        connected = any(lnk[3] in save_audio_ids for lnk in wf.get("links", []))
-        assert connected, "No link from any node to SaveAudio found"

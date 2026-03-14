@@ -1,6 +1,6 @@
 {
-  "last_node_id": 3,
-  "last_link_id": 2,
+  "last_node_id": 2,
+  "last_link_id": 1,
   "nodes": [
     {
       "id": 1,
@@ -95,16 +95,7 @@
           "link": null
         }
       ],
-      "outputs": [
-        {
-          "name": "audio",
-          "type": "AUDIO",
-          "links": [
-            2
-          ],
-          "slot_index": 0
-        }
-      ],
+      "outputs": [],
       "properties": {
         "Node name for S&R": "AcestepCPPGenerate"
       },
@@ -135,36 +126,6 @@
         "",
         1.0
       ]
-    },
-    {
-      "id": 3,
-      "type": "SaveAudio",
-      "pos": [
-        880,
-        20
-      ],
-      "size": {
-        "0": 320,
-        "1": 130
-      },
-      "flags": {},
-      "order": 2,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "audio",
-          "type": "AUDIO",
-          "link": 2
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "Node name for S&R": "SaveAudio"
-      },
-      "widgets_values": [
-        "acestep/output",
-        "mp3"
-      ]
     }
   ],
   "links": [
@@ -175,14 +136,6 @@
       2,
       0,
       "ACESTEP_MODELS"
-    ],
-    [
-      2,
-      2,
-      0,
-      3,
-      0,
-      "AUDIO"
     ]
   ],
   "groups": [],

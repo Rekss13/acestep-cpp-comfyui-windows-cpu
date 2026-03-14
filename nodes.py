@@ -5,11 +5,7 @@ import multiprocessing
 import shutil
 import subprocess
 import tempfile
-import wave
 from typing import Any, Dict, List, Optional, Tuple, Union
-
-import numpy as np
-import torch
 
 import folder_paths
 
@@ -1128,8 +1124,8 @@ class AcestepCPPGenerate:
             },
         }
 
-    RETURN_TYPES = ("AUDIO",)
-    RETURN_NAMES = ("audio",)
+    RETURN_TYPES = ()
+    OUTPUT_NODE = True
     FUNCTION = "generate"
     CATEGORY = "AcestepCPP"
 
@@ -1394,33 +1390,14 @@ class AcestepCPPGenerate:
                     f"stdout: {dit_result.stdout}\nstderr: {dit_result.stderr}"
                 )
 
-            # Decode the generated audio to raw PCM via ffmpeg, then read it
-            # with the built-in wave module.  This avoids optional torchaudio
-            # backends such as torchcodec that may not be installed.
-            decoded_wav = os.path.join(tmpdir, "decoded.wav")
-            _decode = subprocess.run(
-                ["ffmpeg", "-y", "-i", audio_path, "-acodec", "pcm_f32le", decoded_wav],
-                capture_output=True,
+            # Copy the native MP3/WAV to ComfyUI's output directory unchanged —
+            # no decoding, no re-encoding, no external tools.
+            out_dir = folder_paths.get_output_directory()
+            full_out_folder, base_name, counter, subfolder, _ = (
+                folder_paths.get_save_image_path("acestep", out_dir)
             )
-            if _decode.returncode != 0:
-                raise RuntimeError(
-                    f"ffmpeg could not decode {os.path.basename(audio_path)}:\n"
-                    + _decode.stderr.decode(errors="replace")
-                )
+            save_filename = f"{base_name}_{counter:05}{ext}"
+            save_path = os.path.join(full_out_folder, save_filename)
+            shutil.copy2(audio_path, save_path)
 
-            with wave.open(decoded_wav, "rb") as _wf:
-                n_ch = _wf.getnchannels()
-                sample_rate = _wf.getframerate()
-                raw = _wf.readframes(_wf.getnframes())
-
-            # pcm_f32le: 32-bit float, little-endian, interleaved channels
-            pcm = np.frombuffer(raw, dtype=np.float32)
-            if n_ch > 1:
-                pcm_2d = pcm.reshape(-1, n_ch).T.copy()  # (channels, samples)
-            else:
-                pcm_2d = pcm.reshape(1, -1).copy()       # (1, samples)
-            waveform = torch.from_numpy(pcm_2d)
-            # ComfyUI AUDIO format: waveform shape (batch, channels, samples)
-            audio = {"waveform": waveform.unsqueeze(0), "sample_rate": sample_rate}
-
-        return (audio,)
+        return {"ui": {"audio": [{"filename": save_filename, "subfolder": subfolder, "type": "output"}]}}
