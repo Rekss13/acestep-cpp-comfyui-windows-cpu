@@ -251,8 +251,7 @@ class TestAcestepCPPGenerateInputTypes:
 
     def test_optional_connections_present(self):
         opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
-        # reference_audio_input removed; src_audio_input, lora, and options remain
-        assert "src_audio_input" in opt
+        # src_audio_input removed; binary supports WAV/MP3 natively via src_audio path
         assert "lora" in opt
         assert "options" in opt
 
@@ -261,8 +260,7 @@ class TestAcestepCPPGenerateInputTypes:
         positional index matches the saved workflow files (index 22)."""
         opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
         # Connection-type inputs do not produce widget slots in workflows.
-        # These types are the ones used for node-to-node connections.
-        _CONNECTION_TYPES = {"AUDIO", "ACESTEP_MODELS", "ACESTEP_LORA", "ACESTEP_OPTIONS"}
+        _CONNECTION_TYPES = {"ACESTEP_MODELS", "ACESTEP_LORA", "ACESTEP_OPTIONS"}
         widget_names = []
         for name, spec in opt.items():
             type_val = spec[0] if isinstance(spec, tuple) else spec

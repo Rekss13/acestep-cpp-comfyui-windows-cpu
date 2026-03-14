@@ -80,11 +80,6 @@
           "link": 1
         },
         {
-          "name": "src_audio_input",
-          "type": "AUDIO",
-          "link": null
-        },
-        {
           "name": "lora",
           "type": "ACESTEP_LORA",
           "link": null
