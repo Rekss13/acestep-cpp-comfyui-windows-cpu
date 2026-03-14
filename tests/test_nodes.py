@@ -256,6 +256,27 @@ class TestAcestepCPPGenerateInputTypes:
         assert "lora" in opt
         assert "options" in opt
 
+    def test_src_audio_after_lego_in_widget_order(self):
+        """src_audio must appear after lego in INPUT_TYPES so the widget
+        positional index matches the saved workflow files (index 22)."""
+        opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
+        # Connection-type inputs do not produce widget slots in workflows.
+        # These types are the ones used for node-to-node connections.
+        _CONNECTION_TYPES = {"AUDIO", "ACESTEP_MODELS", "ACESTEP_LORA", "ACESTEP_OPTIONS"}
+        widget_names = []
+        for name, spec in opt.items():
+            type_val = spec[0] if isinstance(spec, tuple) else spec
+            # list/tuple values mean a dropdown — always a widget input
+            if isinstance(type_val, str) and type_val in _CONNECTION_TYPES:
+                continue
+            widget_names.append(name)
+        lego_idx = widget_names.index("lego")
+        src_audio_idx = widget_names.index("src_audio")
+        assert src_audio_idx > lego_idx, (
+            f"src_audio (index {src_audio_idx}) must come after lego "
+            f"(index {lego_idx}) in INPUT_TYPES optional section"
+        )
+
     def test_optional_has_new_params(self):
         """New params added in the redesign must all be present."""
         opt = nodes.AcestepCPPGenerate.INPUT_TYPES()["optional"]
@@ -295,6 +316,91 @@ class TestAcestepCPPGenerateInputTypes:
         assert "guitar" in nodes.AcestepCPPGenerate.LEGO_TRACKS
         assert "drums" in nodes.AcestepCPPGenerate.LEGO_TRACKS
         assert "" in nodes.AcestepCPPGenerate.LEGO_TRACKS
+
+
+# ===========================================================================
+# AcestepCPPGenerate — VALIDATE_INPUTS
+# ===========================================================================
+
+class TestValidateInputs:
+    """VALIDATE_INPUTS must accept empty strings for all numeric optional fields
+    so that older workflows serialised with '' instead of the numeric default
+    pass ComfyUI's prompt-validation stage."""
+
+    def _vi(self, **kwargs):
+        return nodes.AcestepCPPGenerate.VALIDATE_INPUTS(**kwargs)
+
+    # ---- lm_top_p (FLOAT) ------------------------------------------------
+    def test_lm_top_p_empty_string_accepted(self):
+        assert self._vi(lm_top_p="") is True
+
+    def test_lm_top_p_valid_string_accepted(self):
+        assert self._vi(lm_top_p="0.9") is True
+
+    def test_lm_top_p_invalid_string_rejected(self):
+        result = self._vi(lm_top_p="abc")
+        assert isinstance(result, str) and "lm_top_p" in result
+
+    # ---- lm_top_k (INT) --------------------------------------------------
+    def test_lm_top_k_empty_string_accepted(self):
+        assert self._vi(lm_top_k="") is True
+
+    def test_lm_top_k_numeric_accepted(self):
+        assert self._vi(lm_top_k=0) is True
+
+    def test_lm_top_k_valid_string_accepted(self):
+        assert self._vi(lm_top_k="50") is True
+
+    def test_lm_top_k_invalid_string_rejected(self):
+        result = self._vi(lm_top_k="bad")
+        assert isinstance(result, str) and "lm_top_k" in result
+
+    # ---- audio_cover_strength (FLOAT) ------------------------------------
+    def test_audio_cover_strength_empty_string_accepted(self):
+        assert self._vi(audio_cover_strength="") is True
+
+    # ---- repainting_start (FLOAT) ----------------------------------------
+    def test_repainting_start_empty_string_accepted(self):
+        assert self._vi(repainting_start="") is True
+
+    def test_repainting_start_numeric_accepted(self):
+        assert self._vi(repainting_start=-1.0) is True
+
+    def test_repainting_start_valid_string_accepted(self):
+        assert self._vi(repainting_start="10.5") is True
+
+    def test_repainting_start_invalid_string_rejected(self):
+        result = self._vi(repainting_start="bad")
+        assert isinstance(result, str) and "repainting_start" in result
+
+    # ---- repainting_end (FLOAT) ------------------------------------------
+    def test_repainting_end_empty_string_accepted(self):
+        assert self._vi(repainting_end="") is True
+
+    def test_repainting_end_numeric_accepted(self):
+        assert self._vi(repainting_end=-1.0) is True
+
+    def test_repainting_end_valid_string_accepted(self):
+        assert self._vi(repainting_end="30.0") is True
+
+    def test_repainting_end_invalid_string_rejected(self):
+        result = self._vi(repainting_end="bad")
+        assert isinstance(result, str) and "repainting_end" in result
+
+    # ---- combined (all five at once) -------------------------------------
+    def test_all_empty_strings_accepted(self):
+        assert self._vi(
+            lm_top_p="", lm_top_k="",
+            audio_cover_strength="",
+            repainting_start="", repainting_end="",
+        ) is True
+
+    def test_all_numeric_accepted(self):
+        assert self._vi(
+            lm_top_p=0.9, lm_top_k=0,
+            audio_cover_strength=0.5,
+            repainting_start=-1.0, repainting_end=-1.0,
+        ) is True
 
 
 # ===========================================================================

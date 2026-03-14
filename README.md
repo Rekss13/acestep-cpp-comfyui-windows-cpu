@@ -95,12 +95,30 @@ Default models (placed in `models/`):
 
 ## Installation
 
+### Fresh install
+
 ```bash
 cd ComfyUI/custom_nodes
 git clone https://github.com/audiohacking/acestep-cpp-comfyui
 ```
 
 Restart ComfyUI. On startup the node will attempt to build the `ace-qwen3` and `dit-vae` binaries automatically if `git` and `cmake` are available. If the automatic build does not complete, use the **Acestep.cpp Builder** node inside ComfyUI — no manual file editing required.
+
+### Updating an existing installation
+
+```bash
+cd ComfyUI/custom_nodes/acestep-cpp-comfyui
+git pull
+```
+
+Then restart ComfyUI so it picks up the new node code.
+
+> **After updating**: if your existing workflows show validation errors such as
+> *"Failed to convert an input value to a INT/FLOAT value"*, the workflow was
+> saved with an older version of the node. Simply **delete the Generate node
+> from the canvas, re-add it from the node list, and re-connect its inputs** —
+> this resets the widget values to the current defaults and clears any stale
+> empty-string placeholders.
 
 ## Advanced Configuration
 

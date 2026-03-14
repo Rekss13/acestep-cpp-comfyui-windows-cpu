@@ -110,13 +110,29 @@ class TestWorkflowStructure:
                     f"Unexpected model name in ModelLoader: {v!r}"
 
     # --- Generate node widget value types --------------------------------
-    # New widget order (redesigned node, no task_type / reference_audio):
-    # 0:caption 1:lyrics 2:instrumental 3:vocal_language 4:duration 5:bpm
-    # 6:keyscale 7:timesignature 8:inference_steps 9:guidance_scale 10:shift
-    # 11:seed 12:lm_temperature 13:lm_cfg_scale 14:lm_top_p 15:lm_top_k
-    # 16:lm_negative_prompt 17:use_cot_caption 18:audio_cover_strength
-    # 19:repainting_start 20:repainting_end 21:lego 22:src_audio
-    # 23:lora_path 24:lora_scale
+    # Widget order (must match INPUT_TYPES — connection-type inputs are excluded):
+    # 0:caption  1:lyrics  2:instrumental  3:vocal_language  4:duration  5:bpm
+    # 6:keyscale  7:timesignature  8:inference_steps  9:guidance_scale  10:shift
+    # 11:seed  12:lm_temperature  13:lm_cfg_scale  14:lm_top_p  15:lm_top_k
+    # 16:lm_negative_prompt  17:use_cot_caption  18:audio_cover_strength
+    # 19:repainting_start  20:repainting_end  21:lego  22:src_audio
+    # 23:lora_path  24:lora_scale
+
+    def test_generate_widget_count(self, workflow_path):
+        """AcestepCPPGenerate must have exactly 25 widget values.
+
+        Widget inputs (non-connection-type): caption, lyrics, instrumental,
+        vocal_language, duration, bpm, keyscale, timesignature, inference_steps,
+        guidance_scale, shift, seed, lm_temperature, lm_cfg_scale, lm_top_p,
+        lm_top_k, lm_negative_prompt, use_cot_caption, audio_cover_strength,
+        repainting_start, repainting_end, lego, src_audio, lora_path, lora_scale.
+        """
+        EXPECTED_WIDGET_COUNT = 25
+        wf = _load(workflow_path)
+        for node in _nodes_by_type(wf, "AcestepCPPGenerate"):
+            wv = node.get("widgets_values", [])
+            assert len(wv) == EXPECTED_WIDGET_COUNT, \
+                f"Expected {EXPECTED_WIDGET_COUNT} widget values, got {len(wv)}: {wv}"
 
     def test_generate_lm_top_p_is_numeric(self, workflow_path):
         """Widget index 14 (lm_top_p) must be a number, never an empty string."""
@@ -127,6 +143,15 @@ class TestWorkflowStructure:
                 assert isinstance(wv[14], (int, float)), \
                     f"lm_top_p (index 14) should be numeric, got {type(wv[14])}"
 
+    def test_generate_lm_top_k_is_numeric(self, workflow_path):
+        """Widget index 15 (lm_top_k) must be an integer, never an empty string."""
+        wf = _load(workflow_path)
+        for node in _nodes_by_type(wf, "AcestepCPPGenerate"):
+            wv = node.get("widgets_values", [])
+            if len(wv) > 15:
+                assert isinstance(wv[15], int), \
+                    f"lm_top_k (index 15) should be int, got {type(wv[15])}: {wv[15]!r}"
+
     def test_generate_audio_cover_strength_is_numeric(self, workflow_path):
         """Widget index 18 (audio_cover_strength) must be a number."""
         wf = _load(workflow_path)
@@ -135,6 +160,33 @@ class TestWorkflowStructure:
             if len(wv) > 18:
                 assert isinstance(wv[18], (int, float)), \
                     f"audio_cover_strength (index 18) should be numeric, got {type(wv[18])}"
+
+    def test_generate_repainting_start_is_numeric(self, workflow_path):
+        """Widget index 19 (repainting_start) must be a number, never an empty string."""
+        wf = _load(workflow_path)
+        for node in _nodes_by_type(wf, "AcestepCPPGenerate"):
+            wv = node.get("widgets_values", [])
+            if len(wv) > 19:
+                assert isinstance(wv[19], (int, float)), \
+                    f"repainting_start (index 19) should be numeric, got {type(wv[19])}: {wv[19]!r}"
+
+    def test_generate_repainting_end_is_numeric(self, workflow_path):
+        """Widget index 20 (repainting_end) must be a number, never an empty string."""
+        wf = _load(workflow_path)
+        for node in _nodes_by_type(wf, "AcestepCPPGenerate"):
+            wv = node.get("widgets_values", [])
+            if len(wv) > 20:
+                assert isinstance(wv[20], (int, float)), \
+                    f"repainting_end (index 20) should be numeric, got {type(wv[20])}: {wv[20]!r}"
+
+    def test_generate_src_audio_is_string(self, workflow_path):
+        """Widget index 22 (src_audio) must be a string."""
+        wf = _load(workflow_path)
+        for node in _nodes_by_type(wf, "AcestepCPPGenerate"):
+            wv = node.get("widgets_values", [])
+            if len(wv) > 22:
+                assert isinstance(wv[22], str), \
+                    f"src_audio (index 22) should be a string, got {type(wv[22])}"
 
     def test_generate_no_task_type(self, workflow_path):
         """task_type is not a valid acestep.cpp field — must not appear in nodes."""
