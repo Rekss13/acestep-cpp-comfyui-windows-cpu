@@ -781,10 +781,12 @@ class AcestepCPPGenerate:
     """
     Generate music with acestep.cpp.
 
-    Runs ``ace-qwen3`` (LM) then ``dit-vae`` (DiT + VAE) and returns the
-    result as a ComfyUI AUDIO tensor.  Connect an **AcestepCPPOptions** node
-    to the ``options`` input to control output format, batching, VAE tiling,
-    and advanced debug flags.
+    Runs ``ace-qwen3`` (LM) then ``dit-vae`` (DiT + VAE).  The native MP3 or
+    WAV produced by the binary is copied as-is to ComfyUI's output directory
+    and an inline audio player is displayed on the node — no Python audio
+    decoding or re-encoding is performed.  Connect an **AcestepCPPOptions**
+    node to the ``options`` input to control output format, batching, VAE
+    tiling, and advanced debug flags.
     """
 
     VOCAL_LANGUAGES = [
@@ -1066,8 +1068,8 @@ class AcestepCPPGenerate:
                         "default": "",
                         "tooltip": (
                             "Path to a WAV or MP3 source file. Used for cover, repaint, "
-                            "and lego modes. Prefer connecting 'src_audio_input' from a "
-                            "Load Audio node instead."
+                            "and lego modes. acestep.cpp reads the file natively — "
+                            "no conversion needed."
                         ),
                     },
                 ),
@@ -1093,16 +1095,6 @@ class AcestepCPPGenerate:
                     },
                 ),
                 # ---- Node connections ----
-                "src_audio_input": (
-                    "AUDIO",
-                    {
-                        "tooltip": (
-                            "Source audio for cover/repaint/lego mode, connected from a "
-                            "Load Audio node. Overrides the 'src_audio' path string "
-                            "when connected."
-                        ),
-                    },
-                ),
                 "lora": (
                     "ACESTEP_LORA",
                     {
@@ -1124,8 +1116,8 @@ class AcestepCPPGenerate:
             },
         }
 
-    RETURN_TYPES = ("AUDIO",)
-    RETURN_NAMES = ("audio",)
+    RETURN_TYPES = ()
+    OUTPUT_NODE = True
     FUNCTION = "generate"
     CATEGORY = "AcestepCPP"
 
@@ -1198,12 +1190,9 @@ class AcestepCPPGenerate:
         src_audio: str = "",
         lora_path: str = "",
         lora_scale: float = 1.0,
-        src_audio_input: Optional[Dict[str, Any]] = None,
         lora: Optional[Dict[str, Any]] = None,
         options: Optional[Dict[str, Any]] = None,
     ):
-        import torchaudio
-
         # Merge options dict (from AcestepCPPOptions) with defaults.
         opts: Dict[str, Any] = options or {}
 
@@ -1242,17 +1231,6 @@ class AcestepCPPGenerate:
             lora_scale = lora["scale"]
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Materialise AUDIO tensor input as a WAV file so the binary can
-            # read it.  This overrides the freeform string-path widget.
-            if src_audio_input is not None:
-                src_wav = os.path.join(tmpdir, "src_audio.wav")
-                torchaudio.save(
-                    src_wav,
-                    src_audio_input["waveform"].squeeze(0),
-                    src_audio_input["sample_rate"],
-                )
-                src_audio = src_wav
-
             request_path = os.path.join(tmpdir, "request.json")
 
             # Build the request JSON following the acestep.cpp reference:
@@ -1390,8 +1368,16 @@ class AcestepCPPGenerate:
                     f"stdout: {dit_result.stdout}\nstderr: {dit_result.stderr}"
                 )
 
-            waveform, sample_rate = torchaudio.load(audio_path)
-            # ComfyUI AUDIO format: waveform shape (batch, channels, samples)
-            audio = {"waveform": waveform.unsqueeze(0), "sample_rate": sample_rate}
+            # Copy the native MP3/WAV to ComfyUI's output directory unchanged —
+            # no decoding, no re-encoding, no external tools.
+            out_dir = folder_paths.get_output_directory()
+            # get_save_image_path is ComfyUI's generic counter-based filename
+            # helper — it works for any file type despite the "image" name.
+            full_out_folder, base_name, counter, subfolder, _ = (
+                folder_paths.get_save_image_path("acestep", out_dir)
+            )
+            save_filename = f"{base_name}_{counter:05}{ext}"
+            save_path = os.path.join(full_out_folder, save_filename)
+            shutil.copy2(audio_path, save_path)
 
-        return (audio,)
+        return {"ui": {"audio": [{"filename": save_filename, "subfolder": subfolder, "type": "output"}]}}
