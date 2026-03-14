@@ -92,8 +92,8 @@
       ],
       "outputs": [
         {
-          "name": "audio",
-          "type": "AUDIO",
+          "name": "filepath",
+          "type": "STRING",
           "links": [
             4
           ],
@@ -133,7 +133,7 @@
     },
     {
       "id": 5,
-      "type": "PreviewAudio",
+      "type": "AudioLoader",
       "pos": [
         920,
         220
@@ -147,14 +147,14 @@
       "mode": 0,
       "inputs": [
         {
-          "name": "audio",
-          "type": "AUDIO",
+          "name": "filepath",
+          "type": "STRING",
           "link": 4
         }
       ],
       "outputs": [],
       "properties": {
-        "Node name for S&R": "PreviewAudio"
+        "Node name for S&R": "AudioLoader"
       },
       "widgets_values": []
     }
@@ -174,7 +174,7 @@
       0,
       5,
       0,
-      "AUDIO"
+      "STRING"
     ]
   ],
   "groups": [],
@@ -207,6 +207,12 @@
         "name": "vae-BF16.gguf",
         "url": "https://huggingface.co/Serveurperso/ACE-Step-1.5-GGUF/resolve/main/vae-BF16.gguf",
         "save_path": "text_encoders/vae-BF16.gguf"
+      }
+    ],
+    "custom_nodes": [
+      {
+        "url": "https://github.com/comfyai/comfyui-nodes",
+        "disabled": false
       }
     ]
   },

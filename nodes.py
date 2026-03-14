@@ -1116,8 +1116,8 @@ class AcestepCPPGenerate:
             },
         }
 
-    RETURN_TYPES = ("AUDIO",)
-    RETURN_NAMES = ("audio",)
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("filepath",)
     OUTPUT_NODE = True
     FUNCTION = "generate"
     CATEGORY = "AcestepCPP"
@@ -1381,15 +1381,9 @@ class AcestepCPPGenerate:
             save_path = os.path.join(full_out_folder, save_filename)
             shutil.copy2(audio_path, save_path)
 
-        # Load the generated audio so downstream nodes (PreviewAudio, SaveAudio)
-        # can receive it.  torchaudio is part of every standard ComfyUI install;
-        # the import is lazy so startup time is not affected when the node is
-        # never executed.
-        import torchaudio  # noqa: PLC0415 – intentional lazy import
-        waveform, sample_rate = torchaudio.load(save_path)
-        audio = {"waveform": waveform.unsqueeze(0), "sample_rate": sample_rate}
-
+        # Return the absolute path to the generated audio file so downstream
+        # nodes (e.g. AudioLoader) can load it directly by file path.
         return {
-            "result": (audio,),
+            "result": (save_path,),
             "ui": {"audio": [{"filename": save_filename, "subfolder": subfolder, "type": "output"}]},
         }
