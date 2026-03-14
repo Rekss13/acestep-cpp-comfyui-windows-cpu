@@ -37,6 +37,31 @@ class TestCoerceFloat:
 
 
 # ===========================================================================
+# _coerce_int
+# ===========================================================================
+
+class TestCoerceInt:
+    def test_int_passthrough(self):
+        assert nodes._coerce_int(5, 0) == 5
+
+    def test_float_truncates(self):
+        assert nodes._coerce_int(3.9, 0) == 3
+
+    def test_valid_string_converts(self):
+        assert nodes._coerce_int("42", 0) == 42
+
+    def test_empty_string_uses_default(self):
+        assert nodes._coerce_int("", 7) == 7
+
+    def test_whitespace_string_uses_default(self):
+        assert nodes._coerce_int("   ", 10) == 10
+
+    def test_different_defaults(self):
+        assert nodes._coerce_int("", 0) == 0
+        assert nodes._coerce_int("", -1) == -1
+
+
+# ===========================================================================
 # scan_gguf_models / get_merged_model_folders / find_model_path
 # ===========================================================================
 
