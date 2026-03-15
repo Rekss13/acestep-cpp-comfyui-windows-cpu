@@ -1,5 +1,7 @@
 # acestep-cpp-comfyui
 
+<img src="https://i.imgur.com/wTYEzA7.png">
+
 ComfyUI custom nodes that wrap [acestep.cpp](https://github.com/audiohacking/acestep.cpp) — a portable C++17 implementation of ACE-Step 1.5 music generation using GGML. Text + lyrics in, stereo 48 kHz audio out. Runs on CPU, CUDA, Metal, and Vulkan.
 
 ## Features
