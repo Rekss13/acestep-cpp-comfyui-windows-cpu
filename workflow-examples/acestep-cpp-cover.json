@@ -133,7 +133,7 @@
     },
     {
       "id": 5,
-      "type": "AudioLoader",
+      "type": "AcestepCPPAudioPlayer",
       "pos": [
         920,
         220
@@ -154,7 +154,7 @@
       ],
       "outputs": [],
       "properties": {
-        "Node name for S&R": "AudioLoader"
+        "Node name for S&R": "AcestepCPPAudioPlayer"
       },
       "widgets_values": []
     }
@@ -209,12 +209,7 @@
         "save_path": "text_encoders/vae-BF16.gguf"
       }
     ],
-    "custom_nodes": [
-      {
-        "url": "https://github.com/comfyai/comfyui-nodes",
-        "disabled": false
-      }
-    ]
+    "custom_nodes": []
   },
   "version": 0.4
 }

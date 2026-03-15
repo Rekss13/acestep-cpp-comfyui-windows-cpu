@@ -80,11 +80,11 @@ class TestWorkflowStructure:
     # --- Output: generate node exposes STRING filepath for downstream nodes ---
 
     def test_has_audio_loader_node(self, workflow_path):
-        """Each workflow must include an AudioLoader node connected to AcestepCPPGenerate."""
+        """Each workflow must include an AcestepCPPAudioPlayer node for in-browser audio preview."""
         wf = _load(workflow_path)
         node_types = [n["type"] for n in wf["nodes"]]
-        assert "AudioLoader" in node_types, \
-            "Workflow must include an AudioLoader node to load the generated audio by file path"
+        assert "AcestepCPPAudioPlayer" in node_types, \
+            "Workflow must include an AcestepCPPAudioPlayer node for in-browser audio preview"
 
     def test_generate_has_filepath_output_link(self, workflow_path):
         """AcestepCPPGenerate must expose a STRING (filepath) output connected to AudioLoader."""

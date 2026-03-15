@@ -701,7 +701,16 @@ class TestRequirementsTxt:
         import ast
         import sys
 
-        stdlib = set(sys.stdlib_module_names)
+        if hasattr(sys, "stdlib_module_names"):
+            stdlib = set(sys.stdlib_module_names)
+        else:
+            import sysconfig, pkgutil
+            stdlib = set(sys.builtin_module_names)
+            for path_key in ("stdlib", "platstdlib"):
+                p = sysconfig.get_path(path_key)
+                if p:
+                    for _, name, _ in pkgutil.iter_modules([p]):
+                        stdlib.add(name)
         stdlib |= self._COMFY_PROVIDED
 
         with open(nodes.__file__) as f:

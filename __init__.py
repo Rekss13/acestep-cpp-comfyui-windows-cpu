@@ -54,6 +54,8 @@ try:
         "AcestepCPPAudioPlayer": "Acestep.cpp Audio Player",
     }
 
+    WEB_DIRECTORY = "./web"
+
 except ImportError:
     # Imported as a standalone module (e.g., by pytest during conftest
     # discovery) rather than as a ComfyUI package — skip node registration.
