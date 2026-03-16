@@ -33,36 +33,36 @@ class TestBinaryExists:
 
     def test_found_directly_in_build(self, tmp_path):
         """Binary placed directly in build/ is detected (new cmake configure)."""
-        (tmp_path / "ace-qwen3").write_text("mock")
-        assert _binary_exists(str(tmp_path), "ace-qwen3") is True
+        (tmp_path / "ace-lm").write_text("mock")
+        assert _binary_exists(str(tmp_path), "ace-lm") is True
 
     def test_found_in_build_bin(self, tmp_path):
         """Binary placed in build/bin/ (ggml default) is detected."""
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
-        (bin_dir / "ace-qwen3").write_text("mock")
-        assert _binary_exists(str(tmp_path), "ace-qwen3") is True
+        (bin_dir / "ace-lm").write_text("mock")
+        assert _binary_exists(str(tmp_path), "ace-lm") is True
 
     def test_not_found_returns_false(self, tmp_path):
         """Returns False when binary is absent from both locations."""
-        assert _binary_exists(str(tmp_path), "ace-qwen3") is False
+        assert _binary_exists(str(tmp_path), "ace-lm") is False
 
     def test_both_locations_present(self, tmp_path):
         """Returns True when binary exists in build/ (checked before build/bin/)."""
-        (tmp_path / "ace-qwen3").write_text("in_build")
+        (tmp_path / "ace-lm").write_text("in_build")
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
-        (bin_dir / "ace-qwen3").write_text("in_bin")
-        assert _binary_exists(str(tmp_path), "ace-qwen3") is True
+        (bin_dir / "ace-lm").write_text("in_bin")
+        assert _binary_exists(str(tmp_path), "ace-lm") is True
 
     def test_wrong_name_not_found(self, tmp_path):
         """Binary with a different name is not falsely matched."""
-        (tmp_path / "dit-vae").write_text("mock")
-        assert _binary_exists(str(tmp_path), "ace-qwen3") is False
+        (tmp_path / "ace-synth").write_text("mock")
+        assert _binary_exists(str(tmp_path), "ace-lm") is False
 
     def test_dit_vae_in_bin(self, tmp_path):
-        """Works for dit-vae as well as ace-qwen3."""
+        """Works for ace-synth as well as ace-lm."""
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
-        (bin_dir / "dit-vae").write_text("mock")
-        assert _binary_exists(str(tmp_path), "dit-vae") is True
+        (bin_dir / "ace-synth").write_text("mock")
+        assert _binary_exists(str(tmp_path), "ace-synth") is True

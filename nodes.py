@@ -293,8 +293,8 @@ _ACESTEP_CPP_REPO = "https://github.com/audiohacking/acestep.cpp"
 
 class AcestepCPPBuilder:
     """
-    Clone ``acestep.cpp`` from GitHub and build the ``ace-qwen3`` and
-    ``dit-vae`` binaries via CMake.
+    Clone ``acestep.cpp`` from GitHub and build the ``ace-lm`` and
+    ``ace-synth`` binaries via CMake.
 
     The default clone directory (``<node_dir>/acestep.cpp``) is the same path
     that ``get_binary_path()`` already searches, so the built binaries will be
@@ -355,7 +355,7 @@ class AcestepCPPBuilder:
     _MAX_ERROR_LOG_LINES = 40
 
     # Binaries produced by the cmake build
-    _BINARIES = ("ace-qwen3", "dit-vae")
+    _BINARIES = ("ace-lm", "ace-synth")
 
     # ------------------------------------------------------------------
     # Helpers
@@ -468,7 +468,7 @@ class AcestepCPPBuilder:
         # --- CMake configure --------------------------------------------------
         # Pass CMAKE_RUNTIME_OUTPUT_DIRECTORY explicitly so that ggml's
         # CMakeLists.txt (which defaults to ${CMAKE_BINARY_DIR}/bin when used
-        # as a subdirectory) does not redirect ace-qwen3 and dit-vae into
+        # as a subdirectory) does not redirect ace-lm and ace-synth into
         # build/bin/ instead of build/.
         cmake_cmd = [
             "cmake", "..",
@@ -635,7 +635,7 @@ class AcestepCPPOptions:
                         "min": 1,
                         "max": 9,
                         "tooltip": (
-                            "Number of LM (ace-qwen3) sequences to generate in parallel. "
+                            "Number of LM (ace-lm) sequences to generate in parallel. "
                             "Each element produces a genuinely different song from a different seed."
                         ),
                     },
@@ -647,7 +647,7 @@ class AcestepCPPOptions:
                         "min": 1,
                         "max": 9,
                         "tooltip": (
-                            "Number of DiT (dit-vae) variations per LM output (max 9). "
+                            "Number of DiT (ace-synth) variations per LM output (max 9). "
                             "Variations share the same prompt but differ in initial noise."
                         ),
                     },
@@ -657,7 +657,7 @@ class AcestepCPPOptions:
                     "BOOLEAN",
                     {
                         "default": False,
-                        "tooltip": "Disable flash attention in both ace-qwen3 and dit-vae",
+                        "tooltip": "Disable flash attention in both ace-lm and ace-synth",
                         "label_on": "Disabled",
                         "label_off": "Enabled",
                     },
@@ -668,14 +668,14 @@ class AcestepCPPOptions:
                         "default": 8192,
                         "min": 1024,
                         "max": 65536,
-                        "tooltip": "ace-qwen3 KV cache size in tokens (default: 8192)",
+                        "tooltip": "ace-lm KV cache size in tokens (default: 8192)",
                     },
                 ),
                 "lm_no_fsm": (
                     "BOOLEAN",
                     {
                         "default": False,
-                        "tooltip": "Disable FSM constrained decoding in ace-qwen3",
+                        "tooltip": "Disable FSM constrained decoding in ace-lm",
                         "label_on": "Disabled",
                         "label_off": "Enabled",
                     },
@@ -709,7 +709,7 @@ class AcestepCPPModelLoader:
                     options,
                     {
                         "tooltip": (
-                            "LM (ace-qwen3) model GGUF, e.g. "
+                            "LM (ace-lm) model GGUF, e.g. "
                             "acestep-5Hz-lm-4B-Q8_0.gguf"
                         )
                     },
@@ -781,7 +781,7 @@ class AcestepCPPGenerate:
     """
     Generate music with acestep.cpp.
 
-    Runs ``ace-qwen3`` (LM) then ``dit-vae`` (DiT + VAE).  The native MP3 or
+    Runs ``ace-lm`` (LM) then ``ace-synth`` (DiT + VAE).  The native MP3 or
     WAV produced by the binary is copied as-is to ComfyUI's output directory
     and an inline audio player is displayed on the node — no Python audio
     decoding or re-encoding is performed.  Connect an **AcestepCPPOptions**
@@ -1210,18 +1210,18 @@ class AcestepCPPGenerate:
         if instrumental and not lyrics.strip():
             lyrics = "[Instrumental]"
 
-        ace_qwen3 = get_binary_path("ace-qwen3")
-        dit_vae = get_binary_path("dit-vae")
+        ace_lm = get_binary_path("ace-lm")
+        ace_synth = get_binary_path("ace-synth")
 
-        if not ace_qwen3:
+        if not ace_lm:
             raise FileNotFoundError(
-                "ace-qwen3 binary not found. "
+                "ace-lm binary not found. "
                 "Use the 'Acestep.cpp Builder' node to build it automatically, "
                 "or run install.py from the node directory."
             )
-        if not dit_vae:
+        if not ace_synth:
             raise FileNotFoundError(
-                "dit-vae binary not found. "
+                "ace-synth binary not found. "
                 "Use the 'Acestep.cpp Builder' node to build it automatically, "
                 "or run install.py from the node directory."
             )
@@ -1276,11 +1276,11 @@ class AcestepCPPGenerate:
                 json.dump(request, f)
 
             # ----------------------------------------------------------------
-            # Step 1 – LM: ace-qwen3 → request0.json (request1.json …)
+            # Step 1 – LM: ace-lm → request0.json (request1.json …)
             # ----------------------------------------------------------------
             lm_batch: int = int(opts.get("lm_batch", 1))
             lm_cmd = [
-                ace_qwen3,
+                ace_lm,
                 "--request", request_path,
                 "--model", models["lm_model"],
             ]
@@ -1299,19 +1299,19 @@ class AcestepCPPGenerate:
             )
             if lm_result.returncode != 0:
                 raise RuntimeError(
-                    f"ace-qwen3 failed (exit {lm_result.returncode}):\n"
+                    f"ace-lm failed (exit {lm_result.returncode}):\n"
                     f"{lm_result.stderr}"
                 )
 
             lm_output = os.path.join(tmpdir, "request0.json")
             if not os.path.isfile(lm_output):
                 raise RuntimeError(
-                    "ace-qwen3 did not produce request0.json.\n"
+                    "ace-lm did not produce request0.json.\n"
                     f"stdout: {lm_result.stdout}\nstderr: {lm_result.stderr}"
                 )
 
             # ----------------------------------------------------------------
-            # Step 2 – DiT+VAE: dit-vae → request00.{mp3|wav}
+            # Step 2 – DiT+VAE: ace-synth → request00.{mp3|wav}
             # ----------------------------------------------------------------
             output_format: str = opts.get("output_format", "mp3")
             mp3_bitrate: int = int(opts.get("mp3_bitrate", 128))
@@ -1320,7 +1320,7 @@ class AcestepCPPGenerate:
             dit_batch: int = int(opts.get("dit_batch", 1))
 
             dit_cmd = [
-                dit_vae,
+                ace_synth,
                 "--request", lm_output,
                 "--text-encoder", models["text_encoder"],
                 "--dit", models["dit"],
@@ -1356,7 +1356,7 @@ class AcestepCPPGenerate:
             )
             if dit_result.returncode != 0:
                 raise RuntimeError(
-                    f"dit-vae failed (exit {dit_result.returncode}):\n"
+                    f"ace-synth failed (exit {dit_result.returncode}):\n"
                     f"{dit_result.stderr}"
                 )
 
@@ -1365,7 +1365,7 @@ class AcestepCPPGenerate:
             audio_path = os.path.join(tmpdir, f"request00{ext}")
             if not os.path.isfile(audio_path):
                 raise RuntimeError(
-                    f"dit-vae did not produce request00{ext}.\n"
+                    f"ace-synth did not produce request00{ext}.\n"
                     f"stdout: {dit_result.stdout}\nstderr: {dit_result.stderr}"
                 )
 

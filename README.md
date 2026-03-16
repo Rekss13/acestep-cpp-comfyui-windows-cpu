@@ -6,7 +6,7 @@ ComfyUI custom nodes that wrap [acestep.cpp](https://github.com/audiohacking/ace
 
 ## Features
 
-- **Build** the `ace-qwen3` and `dit-vae` binaries from source via the **Acestep.cpp Builder** node (no terminal required)
+- **Build** the `ace-lm` and `ace-synth` binaries from source via the **Acestep.cpp Builder** node (no terminal required)
 - **Download** the required GGUF models directly from HuggingFace without leaving ComfyUI
 - Load the four GGUF model files required by acestep.cpp (LM, text encoder, DiT, VAE)
 - Load LoRA adapters from a dedicated **Acestep.cpp LoRA Loader** node
@@ -40,7 +40,7 @@ After installing this custom node package, drop the **Acestep.cpp Builder** node
 1. Clone `https://github.com/audiohacking/acestep.cpp` into `<node_dir>/acestep.cpp`
 2. Run `git submodule update --init --recursive`
 3. Configure with CMake (auto-detecting CUDA → Metal → CPU)
-4. Build `ace-qwen3` and `dit-vae` using all available CPU cores
+4. Build `ace-lm` and `ace-synth` using all available CPU cores
 
 The binaries land in `<node_dir>/acestep.cpp/build/`, which is where the **Generate** node looks first — no extra config needed.
 
@@ -65,7 +65,7 @@ cmake .. -DGGML_BLAS=ON
 cmake --build . --config Release -j$(nproc)
 ```
 
-This produces `ace-qwen3` and `dit-vae` in `<node_dir>/acestep.cpp/build/`, which is where the Generate node already looks — no extra config needed.
+This produces `ace-lm` and `ace-synth` in `<node_dir>/acestep.cpp/build/`, which is where the Generate node already looks — no extra config needed.
 
 ### 2 – Download GGUF models
 
@@ -90,7 +90,7 @@ Default models (placed in `models/`):
 
 | GGUF | Role | Size |
 |------|------|------|
-| `acestep-5Hz-lm-4B-Q8_0.gguf` | LM (ace-qwen3) | 4.2 GB |
+| `acestep-5Hz-lm-4B-Q8_0.gguf` | LM (ace-lm) | 4.2 GB |
 | `Qwen3-Embedding-0.6B-Q8_0.gguf` | Text encoder | 748 MB |
 | `acestep-v15-turbo-Q8_0.gguf` | DiT | 2.4 GB |
 | `vae-BF16.gguf` | VAE | 322 MB |
@@ -104,7 +104,7 @@ cd ComfyUI/custom_nodes
 git clone https://github.com/audiohacking/acestep-cpp-comfyui
 ```
 
-Restart ComfyUI. On startup the node will attempt to build the `ace-qwen3` and `dit-vae` binaries automatically if `git` and `cmake` are available. If the automatic build does not complete, use the **Acestep.cpp Builder** node inside ComfyUI — no manual file editing required.
+Restart ComfyUI. On startup the node will attempt to build the `ace-lm` and `ace-synth` binaries automatically if `git` and `cmake` are available. If the automatic build does not complete, use the **Acestep.cpp Builder** node inside ComfyUI — no manual file editing required.
 
 ### Updating an existing installation
 
@@ -134,8 +134,8 @@ Copy `config.example.json` to `config.json` in the node directory and set only t
     "/custom/path/to/models"
   ],
   "binary_paths": {
-    "ace-qwen3": "/custom/path/to/build/ace-qwen3",
-    "dit-vae": "/custom/path/to/build/dit-vae"
+    "ace-lm": "/custom/path/to/build/ace-lm",
+    "ace-synth": "/custom/path/to/build/ace-synth"
   }
 }
 ```
@@ -161,7 +161,7 @@ Ready-to-use workflow JSON files are in the `workflow-examples/` directory. Drag
 
 ### Acestep.cpp Builder
 
-Clones [`audiohacking/acestep.cpp`](https://github.com/audiohacking/acestep.cpp) from GitHub and builds the `ace-qwen3` and `dit-vae` binaries using CMake. Requires `git` and `cmake` on the system PATH.
+Clones [`audiohacking/acestep.cpp`](https://github.com/audiohacking/acestep.cpp) from GitHub and builds the `ace-lm` and `ace-synth` binaries using CMake. Requires `git` and `cmake` on the system PATH.
 
 **Inputs (required)**
 
@@ -271,9 +271,9 @@ Configures advanced technical parameters for generation. Connect to the **Genera
 | `vae_overlap` | `64` | VAE overlap frames per side |
 | `lm_batch` | `1` | Number of LM sequences to generate in parallel (each produces a different song) |
 | `dit_batch` | `1` | Number of DiT variations per LM output (max 9, differ only in noise) |
-| `no_flash_attn` | `false` | Disable flash attention in both `ace-qwen3` and `dit-vae` |
-| `lm_max_seq` | `8192` | KV cache size for `ace-qwen3` in tokens |
-| `lm_no_fsm` | `false` | Disable FSM constrained decoding in `ace-qwen3` |
+| `no_flash_attn` | `false` | Disable flash attention in both `ace-lm` and `ace-synth` |
+| `lm_max_seq` | `8192` | KV cache size for `ace-lm` in tokens |
+| `lm_no_fsm` | `false` | Disable FSM constrained decoding in `ace-lm` |
 
 **Outputs**
 
@@ -285,7 +285,7 @@ Configures advanced technical parameters for generation. Connect to the **Genera
 
 ### Acestep.cpp Generate
 
-Runs `ace-qwen3` (LM) then `dit-vae` (DiT + VAE) and returns the generated audio. Optionally connect an **Acestep.cpp Options** node to control output format, batching, and VAE tiling.
+Runs `ace-lm` (LM) then `ace-synth` (DiT + VAE) and returns the generated audio. Optionally connect an **Acestep.cpp Options** node to control output format, batching, and VAE tiling.
 
 **Inputs (required)**
 

@@ -65,7 +65,7 @@ jobs:
 
       - name: Verify binaries exist
         run: |
-          for bin in ace-qwen3 dit-vae; do
+          for bin in ace-lm ace-synth; do
             # install.py passes -DCMAKE_RUNTIME_OUTPUT_DIRECTORY so binaries
             # land in build/ directly; also check build/bin/ as a fallback for
             # any build done without that flag (mirrors _binary_in_build logic).
