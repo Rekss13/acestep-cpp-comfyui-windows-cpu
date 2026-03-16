@@ -3,7 +3,7 @@
 
 ComfyUI Manager automatically runs this script when the node is installed
 or updated.  It clones ``https://github.com/audiohacking/acestep.cpp`` into
-the node directory and builds the ``ace-qwen3`` and ``dit-vae`` binaries
+the node directory and builds the ``ace-lm`` and ``ace-synth`` binaries
 that the *Acestep.cpp Generate* node needs at runtime.
 
 If ``git`` or ``cmake`` are not available the script prints a helpful
@@ -22,7 +22,7 @@ import sys
 NODE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_DIR = os.path.join(NODE_DIR, "acestep.cpp")
 REPO_URL = "https://github.com/audiohacking/acestep.cpp"
-BINARIES = ("ace-qwen3", "dit-vae")
+BINARIES = ("ace-lm", "ace-synth")
 
 
 # ---------------------------------------------------------------------------
@@ -140,7 +140,7 @@ def install() -> None:
     print("[acestep-cpp] Running CMake configure …", flush=True)
     # Pass CMAKE_RUNTIME_OUTPUT_DIRECTORY explicitly so ggml's CMakeLists.txt
     # (which defaults to ${CMAKE_BINARY_DIR}/bin when used as a subdirectory)
-    # does not redirect the ace-qwen3 and dit-vae executables into build/bin/.
+    # does not redirect the ace-lm and ace-synth executables into build/bin/.
     _run(
         ["cmake", "..", f"-DCMAKE_RUNTIME_OUTPUT_DIRECTORY={build_dir}"]
         + _cmake_flags(backend),

@@ -3,7 +3,7 @@
     "/path/to/your/models"
   ],
   "binary_paths": {
-    "ace-qwen3": "/path/to/acestep.cpp/build/ace-qwen3",
-    "dit-vae": "/path/to/acestep.cpp/build/dit-vae"
+    "ace-lm": "/path/to/acestep.cpp/build/ace-lm",
+    "ace-synth": "/path/to/acestep.cpp/build/ace-synth"
   }
 }

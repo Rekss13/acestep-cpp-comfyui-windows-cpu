@@ -554,27 +554,27 @@ class TestBinaryInBuild:
     """_binary_in_build checks both build/ and build/bin/ (ggml default)."""
 
     def test_found_directly(self, tmp_path):
-        binary = tmp_path / "ace-qwen3"
+        binary = tmp_path / "ace-lm"
         binary.write_text("mock")
-        assert nodes._binary_in_build(str(tmp_path), "ace-qwen3") == str(binary)
+        assert nodes._binary_in_build(str(tmp_path), "ace-lm") == str(binary)
 
     def test_found_in_bin_subdir(self, tmp_path):
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
-        binary = bin_dir / "ace-qwen3"
+        binary = bin_dir / "ace-lm"
         binary.write_text("mock")
-        assert nodes._binary_in_build(str(tmp_path), "ace-qwen3") == str(binary)
+        assert nodes._binary_in_build(str(tmp_path), "ace-lm") == str(binary)
 
     def test_prefers_direct_over_bin(self, tmp_path):
-        direct = tmp_path / "ace-qwen3"
+        direct = tmp_path / "ace-lm"
         direct.write_text("direct")
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
-        (bin_dir / "ace-qwen3").write_text("in_bin")
-        assert nodes._binary_in_build(str(tmp_path), "ace-qwen3") == str(direct)
+        (bin_dir / "ace-lm").write_text("in_bin")
+        assert nodes._binary_in_build(str(tmp_path), "ace-lm") == str(direct)
 
     def test_returns_none_when_absent(self, tmp_path):
-        assert nodes._binary_in_build(str(tmp_path), "ace-qwen3") is None
+        assert nodes._binary_in_build(str(tmp_path), "ace-lm") is None
 
 
 # ===========================================================================
@@ -588,23 +588,23 @@ class TestGetBinaryPath:
 
     def test_explicit_config_path_returned(self, tmp_path, monkeypatch):
         """Binary path from config.json binary_paths is returned directly."""
-        binary = tmp_path / "ace-qwen3"
+        binary = tmp_path / "ace-lm"
         binary.write_text("mock")
         monkeypatch.setattr(
             nodes, "load_config",
-            lambda: {"binary_paths": {"ace-qwen3": str(binary)}},
+            lambda: {"binary_paths": {"ace-lm": str(binary)}},
         )
-        assert nodes.get_binary_path("ace-qwen3") == str(binary)
+        assert nodes.get_binary_path("ace-lm") == str(binary)
 
     def test_explicit_config_path_missing_file_ignored(self, tmp_path, monkeypatch):
         """Config binary_paths entry is skipped when the file does not exist."""
         monkeypatch.setattr(
             nodes, "load_config",
-            lambda: {"binary_paths": {"ace-qwen3": str(tmp_path / "nonexistent")}},
+            lambda: {"binary_paths": {"ace-lm": str(tmp_path / "nonexistent")}},
         )
         monkeypatch.setattr(nodes.shutil, "which", lambda *a, **kw: None)
         # No local build files either — result should be None
-        result = nodes.get_binary_path("ace-qwen3")
+        result = nodes.get_binary_path("ace-lm")
         assert result is None
 
     def test_system_path_lookup(self, monkeypatch):
@@ -613,8 +613,8 @@ class TestGetBinaryPath:
         monkeypatch.setattr(
             nodes.shutil, "which", lambda name, **kw: f"/usr/bin/{name}"
         )
-        result = nodes.get_binary_path("ace-qwen3")
-        assert result == "/usr/bin/ace-qwen3"
+        result = nodes.get_binary_path("ace-lm")
+        assert result == "/usr/bin/ace-lm"
 
     def test_returns_none_when_nowhere(self, monkeypatch):
         """Returns None when binary is absent from config, PATH, and local build."""
@@ -626,7 +626,7 @@ class TestGetBinaryPath:
             monkeypatch.setattr(
                 nodes, "__file__", os.path.join(tmp, "nodes.py")
             )
-            result = nodes.get_binary_path("ace-qwen3")
+            result = nodes.get_binary_path("ace-lm")
         assert result is None
 
 
