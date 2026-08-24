@@ -471,7 +471,7 @@ class AcestepCPPBuilder:
         # as a subdirectory) does not redirect ace-lm and ace-synth into
         # build/bin/ instead of build/.
         cmake_cmd = [
-            "cmake", "..",
+            "cmake", "..", "-DGGML_CUDA=OFF",
             f"-DCMAKE_RUNTIME_OUTPUT_DIRECTORY={build_dir}",
         ] + self._cmake_flags(resolved)
         log.append(f"[AcestepCPP] Configuring: {' '.join(cmake_cmd)}")
@@ -1231,7 +1231,11 @@ class AcestepCPPGenerate:
             lora_path = lora["path"]
             lora_scale = lora["scale"]
 
-        with tempfile.TemporaryDirectory() as tmpdir:
+        my_fixed_tmp = os.path.join(os.path.dirname(__file__), "ace_tmp")
+        os.makedirs(my_fixed_tmp, exist_ok=True)
+        from contextlib import nullcontext
+
+        with nullcontext(my_fixed_tmp) as tmpdir:
             request_path = os.path.join(tmpdir, "request.json")
 
             # Build the request JSON following the acestep.cpp reference:
@@ -1279,10 +1283,11 @@ class AcestepCPPGenerate:
             # Step 1 – LM: ace-lm → request0.json (request1.json …)
             # ----------------------------------------------------------------
             lm_batch: int = int(opts.get("lm_batch", 1))
+            models_dir = os.path.dirname(models["lm_model"])
             lm_cmd = [
                 ace_lm,
                 "--request", request_path,
-                "--model", models["lm_model"],
+                "--models", models_dir,
             ]
             if lm_batch > 1:
                 lm_cmd += ["--batch", str(lm_batch)]
@@ -1303,10 +1308,13 @@ class AcestepCPPGenerate:
                     f"{lm_result.stderr}"
                 )
 
-            lm_output = os.path.join(tmpdir, "request0.json")
+            lm_output = os.path.join(tmpdir, "request.json")
+            import time
+            time.sleep(2)
+            
             if not os.path.isfile(lm_output):
                 raise RuntimeError(
-                    "ace-lm did not produce request0.json.\n"
+                    "ace-lm did not produce request.json.\n"
                     f"stdout: {lm_result.stdout}\nstderr: {lm_result.stderr}"
                 )
 
@@ -1318,13 +1326,12 @@ class AcestepCPPGenerate:
             vae_chunk: int = int(opts.get("vae_chunk", 256))
             vae_overlap: int = int(opts.get("vae_overlap", 64))
             dit_batch: int = int(opts.get("dit_batch", 1))
+            models_dir = os.path.dirname(models["dit"])
 
             dit_cmd = [
                 ace_synth,
                 "--request", lm_output,
-                "--text-encoder", models["text_encoder"],
-                "--dit", models["dit"],
-                "--vae", models["vae"],
+                "--models", models_dir,
                 "--vae-chunk", str(vae_chunk),
                 "--vae-overlap", str(vae_overlap),
             ]
@@ -1334,22 +1341,22 @@ class AcestepCPPGenerate:
                 dit_cmd += ["--src-audio", src_audio.strip()]
 
             # LoRA adapter
-            if lora_path.strip():
-                dit_cmd += ["--lora", lora_path.strip(), "--lora-scale", str(lora_scale)]
+            #if lora_path.strip():
+            #    dit_cmd += ["--lora", lora_path.strip(), "--lora-scale", str(lora_scale)]
 
             # Output format
-            if output_format == "wav":
-                dit_cmd += ["--wav"]
-            else:
-                dit_cmd += ["--mp3-bitrate", str(mp3_bitrate)]
+            #if output_format == "wav":
+            #    dit_cmd += ["--wav"]
+            #else:
+            #    dit_cmd += ["--mp3-bitrate", str(mp3_bitrate)]
 
             # Batch
-            if dit_batch > 1:
-                dit_cmd += ["--batch", str(dit_batch)]
+            #if dit_batch > 1:
+            #    dit_cmd += ["--batch", str(dit_batch)]
 
             # Flash attention
-            if opts.get("no_flash_attn", False):
-                dit_cmd += ["--no-fa"]
+            #if opts.get("no_flash_attn", False):
+            #    dit_cmd += ["--no-fa"]
 
             dit_result = subprocess.run(
                 dit_cmd, capture_output=True, encoding='utf-8', errors='replace', cwd=tmpdir
@@ -1362,10 +1369,10 @@ class AcestepCPPGenerate:
 
             # Locate the first output file (request00.mp3 or request00.wav)
             ext = ".wav" if output_format == "wav" else ".mp3"
-            audio_path = os.path.join(tmpdir, f"request00{ext}")
+            audio_path = os.path.join(tmpdir, f"request0{ext}")
             if not os.path.isfile(audio_path):
                 raise RuntimeError(
-                    f"ace-synth did not produce request00{ext}.\n"
+                    f"ace-synth did not produce request0{ext}.\n"
                     f"stdout: {dit_result.stdout}\nstderr: {dit_result.stderr}"
                 )
 
