@@ -29,7 +29,11 @@ apt install git cmake build-essential
 
 # macOS (Homebrew)
 brew install cmake
+
+# Windows
+winget install Kitware.CMake
 ```
+Additional information for Windows. If installation from the command line fails, download the installer from the official website: [cmake.org](https://cmake.org/download/).
 
 ### 1 – Build acestep.cpp
 
@@ -43,6 +47,8 @@ After installing this custom node package, drop the **Acestep.cpp Builder** node
 4. Build `ace-lm` and `ace-synth` using all available CPU cores
 
 The binaries land in `<node_dir>/acestep.cpp/build/`, which is where the **Generate** node looks first — no extra config needed.
+
+To build, select the **cpu** in the device node, copy the resulting binaries to the path specified above, and delete the permission file `.exe` from them.
 
 **Option B – Command line**
 
